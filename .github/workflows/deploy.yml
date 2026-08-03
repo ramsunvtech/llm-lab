@@ -1,4 +1,4 @@
-name: LLM Lab deployment
+name: LLM Lab
 
 on:
   push:
