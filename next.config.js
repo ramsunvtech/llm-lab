@@ -1,18 +1,36 @@
 /** @type {import('next').NextConfig} */
 
-// When building on GitHub Actions, GITHUB_REPOSITORY is auto-set to "owner/repo".
-// We use the repo name as the basePath so assets resolve correctly on
-// https://<owner>.github.io/<repo>/
-const repo = process.env.GITHUB_REPOSITORY ? process.env.GITHUB_REPOSITORY.split('/')[1] : '';
-const isGhActions = process.env.GITHUB_ACTIONS === 'true';
-const basePath = isGhActions && repo ? `/${repo}` : '';
+// GitHub Pages deployment support
+// Example:
+// https://username.github.io/llm-lab/
+
+const repo = process.env.GITHUB_REPOSITORY
+  ? process.env.GITHUB_REPOSITORY.split('/')[1]
+  : 'llm-lab';
+
+const isGhPages = process.env.GITHUB_ACTIONS === 'true';
+
+const basePath = isGhPages ? `/${repo}` : '';
 
 const nextConfig = {
+  // Required for GitHub Pages (static export)
   output: 'export',
+
+  // Deploy under /repository-name
   basePath,
-  assetPrefix: basePath ? `${basePath}/` : undefined,
+
+  // Fix JS/CSS/image asset paths
+  assetPrefix: basePath ? `${basePath}/` : '',
+
+  // GitHub Pages works better with .html URLs
   trailingSlash: true,
-  images: { unoptimized: true },
+
+  // Next Image optimization does not work on GitHub Pages
+  images: {
+    unoptimized: true,
+  },
+
+  // Optional: expose base path to frontend
   env: {
     NEXT_PUBLIC_BASE_PATH: basePath,
   },
