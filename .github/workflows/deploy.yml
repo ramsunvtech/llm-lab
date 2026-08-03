@@ -24,7 +24,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "22"   # Updated from 20 to 22
+          node-version: "22"
           cache: "npm"
 
       - name: Setup Pages
@@ -32,6 +32,7 @@ jobs:
         uses: actions/configure-pages@v5
         with:
           static_site_generator: next
+          enablement: true   # <--- Fixes the "Get Pages site failed" error automatically
 
       - name: Install dependencies
         run: npm ci
