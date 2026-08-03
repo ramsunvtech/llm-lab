@@ -28,7 +28,7 @@ export default function DecoderStage({
       />
 
       <div className="flex w-full max-w-2xl flex-col items-center gap-5">
-        <div className="w-full rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 text-center">
+        <div className="w-full rounded-2xl border border-black/[0.06] bg-black/[0.02] p-5 text-center">
           <p className="mb-2 text-[11px] uppercase tracking-wide text-base-500">Growing sequence</p>
           <p className="font-mono text-sm leading-relaxed text-base-200 sm:text-base">
             <span className="text-base-400">{prompt}</span>{' '}
@@ -70,9 +70,9 @@ export default function DecoderStage({
                   key={p.word}
                   className="rounded-full border px-2 py-0.5 text-[11px] font-mono"
                   style={{
-                    borderColor: p.word === current.word ? `${model.accent}88` : 'rgba(255,255,255,0.08)',
+                    borderColor: p.word === current.word ? `${model.accent}88` : 'rgba(20,18,12,0.12)',
                     backgroundColor: p.word === current.word ? `${model.accent}22` : 'transparent',
-                    color: p.word === current.word ? model.accent : '#6b7385',
+                    color: p.word === current.word ? model.accent : '#6B6759',
                   }}
                 >
                   {p.word} {(p.value * 100).toFixed(0)}%

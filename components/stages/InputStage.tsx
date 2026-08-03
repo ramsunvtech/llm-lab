@@ -21,8 +21,8 @@ export default function InputStage({ prompt, model }: { prompt: string; model: M
         “{prompt}”
       </motion.div>
       <div className="flex items-center gap-3 text-xs text-base-400">
-        <span className="rounded-full border border-white/10 px-2.5 py-1">{prompt.length} characters</span>
-        <span className="rounded-full border border-white/10 px-2.5 py-1">{model.name} · {model.org}</span>
+        <span className="rounded-full border border-black/10 px-2.5 py-1">{prompt.length} characters</span>
+        <span className="rounded-full border border-black/10 px-2.5 py-1">{model.name} · {model.org}</span>
       </div>
       <motion.div
         initial={{ opacity: 0 }}

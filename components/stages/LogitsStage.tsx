@@ -27,8 +27,8 @@ export default function LogitsStage({ logits, model }: { logits: LogitItem[]; mo
               className="flex items-center gap-3"
             >
               <span className="w-20 shrink-0 text-right font-mono text-xs text-base-300">{l.word}</span>
-              <div className="relative h-4 flex-1 rounded bg-white/[0.03]">
-                <div className="absolute left-1/2 top-0 h-full w-px bg-white/10" />
+              <div className="relative h-4 flex-1 rounded bg-black/[0.03]">
+                <div className="absolute left-1/2 top-0 h-full w-px bg-black/10" />
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${widthPct}%` }}

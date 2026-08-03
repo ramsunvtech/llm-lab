@@ -27,7 +27,7 @@ export default function AttentionStage({
         description="Every token asks: 'which other tokens matter to understanding me?' Brighter cells mean the row token is paying more attention to the column token."
       />
 
-      <div className="flex items-center gap-1.5 rounded-full border border-white/[0.06] bg-white/[0.02] p-1">
+      <div className="flex items-center gap-1.5 rounded-full border border-black/[0.06] bg-black/[0.02] p-1">
         {Array.from({ length: model.numHeads }).map((_, h) => (
           <button
             key={h}
@@ -35,7 +35,7 @@ export default function AttentionStage({
             className="rounded-full px-3 py-1 text-xs font-medium transition"
             style={{
               backgroundColor: headIdx === h ? model.accent : 'transparent',
-              color: headIdx === h ? '#0b0d11' : '#95a0b3',
+              color: headIdx === h ? '#FFFFFF' : '#8B8576',
             }}
           >
             Head {h + 1}

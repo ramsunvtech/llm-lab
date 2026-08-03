@@ -27,7 +27,7 @@ export default function TransformerStage({
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.18, duration: 0.4 }}
-            className="w-full rounded-xl border border-white/[0.07] bg-white/[0.02] p-3.5"
+            className="w-full rounded-xl border border-black/[0.07] bg-black/[0.02] p-3.5"
           >
             <div className="mb-2.5 flex items-center justify-between">
               <span className="text-xs font-semibold text-base-200">Layer {i + 1}</span>
@@ -47,7 +47,7 @@ export default function TransformerStage({
             </div>
 
             {model.moe && layer.expertInfo && (
-              <div className="mt-3 flex items-center gap-1.5 border-t border-white/[0.05] pt-2.5">
+              <div className="mt-3 flex items-center gap-1.5 border-t border-black/[0.05] pt-2.5">
                 <span className="mr-1 text-[10px] text-base-500">Router →</span>
                 {layer.expertInfo.scores.map((s, e) => {
                   const chosen = layer.expertInfo!.chosen.includes(e);
@@ -59,8 +59,8 @@ export default function TransformerStage({
                       transition={{ delay: i * 0.18 + 0.5 + e * 0.03 }}
                       className="flex h-6 w-6 items-center justify-center rounded-md text-[9px] font-medium"
                       style={{
-                        backgroundColor: chosen ? model.accent : 'rgba(255,255,255,0.04)',
-                        color: chosen ? '#0b0d11' : '#6b7385',
+                        backgroundColor: chosen ? model.accent : 'rgba(20,18,12,0.05)',
+                        color: chosen ? '#FFFFFF' : '#6B6759',
                         outline: chosen ? `1px solid ${model.accent}` : 'none',
                       }}
                       title={`Expert ${e + 1}: ${(s * 100).toFixed(1)}%`}
@@ -104,9 +104,9 @@ function Block({
       transition={{ delay }}
       className="flex-1 rounded-lg border px-2 py-2 text-center text-[10px] font-medium"
       style={{
-        borderColor: muted ? 'rgba(255,255,255,0.08)' : `${accent}66`,
-        backgroundColor: muted ? 'rgba(255,255,255,0.02)' : `${accent}1a`,
-        color: muted ? '#95a0b3' : accent,
+        borderColor: muted ? 'rgba(20,18,12,0.10)' : `${accent}66`,
+        backgroundColor: muted ? 'rgba(20,18,12,0.03)' : `${accent}1a`,
+        color: muted ? '#6B6759' : accent,
       }}
     >
       {label}

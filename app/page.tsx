@@ -8,11 +8,8 @@ import { tokenize } from '@/lib/tokenizer';
 import { runPipeline, generateSequence } from '@/lib/engine';
 import { ModelPreset, PipelineResult, GeneratedStep } from '@/lib/types';
 
-import Header from '@/components/Header';
-import PromptBar from '@/components/PromptBar';
-import ModelSelector from '@/components/ModelSelector';
-import Timeline from '@/components/Timeline';
-import Controls from '@/components/Controls';
+import Sidebar from '@/components/Sidebar';
+import StageNav from '@/components/StageNav';
 import EmptyState from '@/components/EmptyState';
 
 import InputStage from '@/components/stages/InputStage';
@@ -25,7 +22,7 @@ import LogitsStage from '@/components/stages/LogitsStage';
 import SoftmaxStage from '@/components/stages/SoftmaxStage';
 import DecoderStage from '@/components/stages/DecoderStage';
 
-const AUTO_ADVANCE_MS = 3400;
+const AUTO_ADVANCE_MS = 3000;
 
 export default function Page() {
   const [prompt, setPrompt] = useState('');
@@ -37,6 +34,12 @@ export default function Page() {
   const [generated, setGenerated] = useState<GeneratedStep[]>([]);
   const [revealedCount, setRevealedCount] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
+  // Bumped on every run/restart. Folded into the AnimatePresence key below so
+  // the stage replays its entrance animation even when stageIndex is already
+  // 0 (e.g. clicking "Run again" while sitting on the Input stage) — without
+  // this, React sees an unchanged key and never remounts, so the new result
+  // appears with zero visible motion, which reads as "nothing happened".
+  const [runId, setRunId] = useState(0);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const genTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -58,12 +61,13 @@ export default function Page() {
     setRevealedCount(0);
     setIsGenerating(false);
     setActivePrompt(text);
+    setRunId((id: number) => id + 1);
+    setIsPlaying(true); // start the walkthrough immediately — no second click needed
   }, []);
 
   const handleRun = () => {
     clearTimer();
     clearGenTimer();
-    setIsPlaying(false);
     setStageIndex(0);
     runFor(prompt, model);
   };
@@ -73,7 +77,6 @@ export default function Page() {
     if (activePrompt) {
       clearTimer();
       clearGenTimer();
-      setIsPlaying(false);
       setStageIndex(0);
       runFor(activePrompt, m);
     }
@@ -129,60 +132,63 @@ export default function Page() {
     setStageIndex((p: number) => Math.max(0, p - 1));
   };
   const restart = () => {
-    setIsPlaying(false);
     clearGenTimer();
     setGenerated([]);
     setRevealedCount(0);
     setIsGenerating(false);
     setStageIndex(0);
+    setRunId((id: number) => id + 1);
+    setIsPlaying(true);
   };
   const togglePlay = () => {
     if (!result) return;
-    if (stageIndex >= STAGES.length - 1) setStageIndex(0);
+    if (stageIndex >= STAGES.length - 1) {
+      setStageIndex(0);
+      setRunId((id: number) => id + 1);
+    }
     setIsPlaying((p: boolean) => !p);
   };
 
   const stageKey = STAGES[stageIndex]?.key;
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-base-950">
-      <div className="pointer-events-none fixed inset-0 bg-grid bg-grid opacity-40 [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,black,transparent)]" />
-      <div className="pointer-events-none fixed -top-40 left-1/2 h-[560px] w-[900px] -translate-x-1/2 rounded-full bg-blue-600/10 blur-[120px]" />
+    <main className="flex min-h-screen flex-col bg-base-950 md:h-screen md:flex-row md:overflow-hidden">
+      <Sidebar
+        prompt={prompt}
+        setPrompt={setPrompt}
+        onRun={handleRun}
+        hasResult={!!result}
+        models={MODELS}
+        selectedModel={model}
+        onSelectModel={handleModelChange}
+      />
 
-      <div className="relative mx-auto flex max-w-6xl flex-col gap-8 px-4 pb-24 pt-10 sm:px-6 lg:px-8">
-        <Header />
+      {result && (
+        <StageNav
+          stages={STAGES}
+          activeIndex={stageIndex}
+          onSelect={(i) => {
+            setIsPlaying(false);
+            setStageIndex(i);
+          }}
+          model={model}
+          isPlaying={isPlaying}
+          onTogglePlay={togglePlay}
+          onStepBack={stepBack}
+          onStepForward={stepForward}
+          onRestart={restart}
+        />
+      )}
 
-        <div className="flex flex-col gap-4">
-          <PromptBar
-            prompt={prompt}
-            setPrompt={setPrompt}
-            onRun={handleRun}
-            hasResult={!!result}
-          />
-          <ModelSelector models={MODELS} selected={model} onSelect={handleModelChange} />
-        </div>
-
-        {!result ? (
-          <EmptyState />
-        ) : (
-          <div className="flex flex-col gap-5">
-            <div className="flex flex-col gap-3 rounded-2xl glass-panel p-3 shadow-panel sm:p-4">
-              <Timeline stages={STAGES} activeIndex={stageIndex} onSelect={(i) => { setIsPlaying(false); setStageIndex(i); }} model={model} />
-              <Controls
-                isPlaying={isPlaying}
-                onTogglePlay={togglePlay}
-                onStepBack={stepBack}
-                onStepForward={stepForward}
-                onRestart={restart}
-                canStepBack={stageIndex > 0}
-                canStepForward={stageIndex < STAGES.length - 1}
-              />
-            </div>
-
-            <div className="min-h-[520px] rounded-2xl glass-panel p-5 shadow-panel sm:p-8">
+      <section className="flex-1 md:h-full md:overflow-y-auto">
+        <div className="mx-auto flex min-h-full max-w-4xl flex-col gap-6 p-5 sm:p-8">
+          {!result ? (
+            <EmptyState />
+          ) : (
+            <div className="flex-1 rounded-2xl glass-panel p-5 shadow-panel sm:p-8">
               <AnimatePresence mode="wait">
                 <motion.div
-                  key={stageKey}
+                  key={`${stageKey}-${runId}`}
                   initial={{ opacity: 0, y: 14 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
@@ -190,10 +196,16 @@ export default function Page() {
                 >
                   {stageKey === 'input' && <InputStage prompt={activePrompt} model={model} />}
                   {stageKey === 'tokenizer' && <TokenizerStage tokens={result.tokens} />}
-                  {stageKey === 'embedding' && <EmbeddingStage tokens={result.tokens} embeddings={result.embeddings} model={model} />}
+                  {stageKey === 'embedding' && (
+                    <EmbeddingStage tokens={result.tokens} embeddings={result.embeddings} model={model} />
+                  )}
                   {stageKey === 'position' && <PositionStage tokens={result.tokens} model={model} />}
-                  {stageKey === 'attention' && <AttentionStage tokens={result.tokens} layers={result.layers} model={model} />}
-                  {stageKey === 'transformer' && <TransformerStage tokens={result.tokens} layers={result.layers} model={model} />}
+                  {stageKey === 'attention' && (
+                    <AttentionStage tokens={result.tokens} layers={result.layers} model={model} />
+                  )}
+                  {stageKey === 'transformer' && (
+                    <TransformerStage tokens={result.tokens} layers={result.layers} model={model} />
+                  )}
                   {stageKey === 'logits' && <LogitsStage logits={result.logits} model={model} />}
                   {stageKey === 'softmax' && <SoftmaxStage probs={result.probs} model={model} />}
                   {stageKey === 'decoder' && (
@@ -208,16 +220,16 @@ export default function Page() {
                 </motion.div>
               </AnimatePresence>
             </div>
-          </div>
-        )}
+          )}
 
-        <footer className="mt-6 text-center text-xs leading-relaxed text-base-400">
-          LLM Lab runs a real, mechanically accurate transformer forward pass entirely in your browser —
-          tokenization, embeddings, attention, softmax, and sampling all really happen. The weights are
-          randomly seeded rather than trained, so outputs are illustrative, not coherent model answers.
-          No servers, no API calls, nothing leaves your device.
-        </footer>
-      </div>
+          <footer className="text-center text-xs leading-relaxed text-base-500">
+            LLM Lab runs a real, mechanically accurate transformer forward pass entirely in your browser —
+            tokenization, embeddings, attention, softmax, and sampling all really happen. The weights are
+            randomly seeded rather than trained, so outputs are illustrative, not coherent model answers.
+            No servers, no API calls, nothing leaves your device.
+          </footer>
+        </div>
+      </section>
     </main>
   );
 }

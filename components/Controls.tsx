@@ -8,6 +8,7 @@ export default function Controls({
   onRestart,
   canStepBack,
   canStepForward,
+  accent,
 }: {
   isPlaying: boolean;
   onTogglePlay: () => void;
@@ -16,9 +17,10 @@ export default function Controls({
   onRestart: () => void;
   canStepBack: boolean;
   canStepForward: boolean;
+  accent: string;
 }) {
   return (
-    <div className="flex items-center justify-center gap-2 border-t border-white/[0.06] pt-3">
+    <div className="flex items-center justify-center gap-1.5">
       <IconButton onClick={onRestart} label="Restart">
         <RestartIcon />
       </IconButton>
@@ -27,7 +29,8 @@ export default function Controls({
       </IconButton>
       <button
         onClick={onTogglePlay}
-        className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-white shadow-lg shadow-blue-500/20 transition hover:bg-blue-400 active:scale-95"
+        className="flex h-10 w-10 items-center justify-center rounded-full text-white shadow-panel transition active:scale-95"
+        style={{ backgroundColor: accent }}
         aria-label={isPlaying ? 'Pause' : 'Play'}
       >
         {isPlaying ? <PauseIcon /> : <PlayIcon />}
@@ -35,7 +38,6 @@ export default function Controls({
       <IconButton onClick={onStepForward} disabled={!canStepForward} label="Step forward">
         <StepForwardIcon />
       </IconButton>
-      <div className="w-8" />
     </div>
   );
 }
@@ -56,7 +58,7 @@ function IconButton({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="flex h-9 w-9 items-center justify-center rounded-full text-base-300 transition hover:bg-white/[0.06] hover:text-base-100 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
+      className="flex h-9 w-9 items-center justify-center rounded-full text-base-400 transition hover:bg-base-800 hover:text-base-200 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
     >
       {children}
     </button>

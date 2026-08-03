@@ -25,18 +25,18 @@ export default function SoftmaxStage({ probs, model }: { probs: LogitItem[]; mod
           >
             <span
               className="w-20 shrink-0 text-right font-mono text-xs"
-              style={{ color: p.word === top?.word ? model.accent : '#95a0b3' }}
+              style={{ color: p.word === top?.word ? model.accent : '#8B8576' }}
             >
               {p.word}
             </span>
-            <div className="h-4 flex-1 overflow-hidden rounded-full bg-white/[0.03]">
+            <div className="h-4 flex-1 overflow-hidden rounded-full bg-black/[0.03]">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${p.value * 100}%` }}
                 transition={{ delay: i * 0.05 + 0.15, duration: 0.6, ease: 'easeOut' }}
                 className="h-full rounded-full"
                 style={{
-                  backgroundColor: p.word === top?.word ? model.accent : '#4a5262',
+                  backgroundColor: p.word === top?.word ? model.accent : '#C9C2AC',
                 }}
               />
             </div>

@@ -33,7 +33,7 @@ export default function EmbeddingStage({
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.06 }}
-            className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-2.5"
+            className="flex flex-col items-center gap-2 rounded-xl border border-black/[0.06] bg-black/[0.02] p-2.5"
           >
             <span className="font-mono text-[11px]" style={{ color: t.color }}>{t.text}</span>
             <div className="flex h-14 items-end gap-[2px]">
@@ -54,12 +54,12 @@ export default function EmbeddingStage({
 
       <div className="flex w-full max-w-md flex-col items-center gap-3">
         <p className="text-xs text-base-500">A simplified 2D view of where each token landed in space</p>
-        <div className="relative aspect-square w-full rounded-2xl border border-white/[0.06] bg-white/[0.015]">
+        <div className="relative aspect-square w-full rounded-2xl border border-black/[0.06] bg-black/[0.015]">
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="h-full w-px bg-white/[0.06]" />
+            <div className="h-full w-px bg-black/[0.06]" />
           </div>
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="h-px w-full bg-white/[0.06]" />
+            <div className="h-px w-full bg-black/[0.06]" />
           </div>
           {points.map((p, i) => (
             <motion.div

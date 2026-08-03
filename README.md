@@ -5,8 +5,19 @@ model — tokenizer → embeddings → positional encoding → self-attention �
 transformer layers → logits → softmax → decoder/sampling — built with
 Next.js, TypeScript, Tailwind CSS, and Framer Motion.
 
-Enter any prompt, pick a model "flavor" (GPT, Claude, Grok, Gemini,
-DeepSeek), and step through (or auto-play) every stage of the pipeline.
+The layout is a 3-pane app shell in the style of ChatGPT/Claude:
+- **Left sidebar** — prompt composer and a model dropdown (GPT-5, Claude
+  Opus, Grok, Gemini, DeepSeek)
+- **Middle rail** — a vertical list of the 9 pipeline stages, doubling as
+  playback navigation (click any stage, or use play/pause/step/restart)
+- **Right pane** — the animated visualization for the current stage
+
+Theme is a warm, light "paper" palette (not black), with each model's own
+accent color used throughout its run — this is deliberately close to how
+Claude.ai / ChatGPT feel, per request.
+
+Enter any prompt, pick a model, and step through (or auto-play) every stage
+of the pipeline.
 
 **How the math works:** this app runs a real, mechanically-accurate
 transformer forward pass — real matrix multiplication, real scaled
@@ -69,8 +80,9 @@ name anywhere.
 
 ```
 app/                 Next.js app router (layout, page, global styles)
-components/           Shared UI: header, prompt bar, model selector, timeline, controls
-components/stages/    One component per pipeline stage
+components/          Sidebar (prompt+model), StageNav (vertical step list),
+                      Controls (playback), EmptyState
+components/stages/   One component per pipeline stage
 lib/
   engine.ts           The simulated transformer forward pass (attention, FFN, logits, softmax)
   math.ts             Seeded PRNG + vector/matrix math primitives

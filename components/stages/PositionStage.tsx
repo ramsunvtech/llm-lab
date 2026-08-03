@@ -32,7 +32,7 @@ export default function PositionStage({ tokens, model }: { tokens: Token[]; mode
         description="Attention alone can't tell word order. So a wave-shaped pattern — unique to each position — is added to every embedding, telling the model 'this token comes 1st, this one comes 2nd', etc."
       />
 
-      <div className="w-full max-w-2xl overflow-x-auto rounded-2xl border border-white/[0.06] bg-white/[0.015] p-4">
+      <div className="w-full max-w-2xl overflow-x-auto rounded-2xl border border-black/[0.06] bg-black/[0.015] p-4">
         <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ minWidth: 480 }}>
           {[0, 1, 2, 3].map((d) => (
             <motion.path
@@ -72,7 +72,7 @@ export default function PositionStage({ tokens, model }: { tokens: Token[]; mode
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 1.3 + i * 0.05 }}
-            className="flex items-center gap-1.5 rounded-full border border-white/[0.06] bg-white/[0.02] px-2.5 py-1 text-[11px]"
+            className="flex items-center gap-1.5 rounded-full border border-black/[0.06] bg-black/[0.02] px-2.5 py-1 text-[11px]"
           >
             <span className="font-mono" style={{ color: t.color }}>{t.text}</span>
             <span className="text-base-500">pos {i}</span>
