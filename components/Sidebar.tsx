@@ -6,9 +6,13 @@ import { ModelPreset } from '@/lib/types';
 
 const EXAMPLES = [
   'Why is the sky blue?',
-  'Write a haiku about the ocean',
-  'Explain gravity to a child',
-  'The cat sat on the mat',
+  'unbelievable',
+  'I paid $123.45 for 3 items.',
+  'Hello 👋😊🚀',
+  'தமிழ் English 中文 日本語',
+  'function add(a, b) { return a + b; }',
+  'https://github.com/openai/gpt',
+  'The quick brown fox jumps over the lazy dog.',
 ];
 
 export default function Sidebar({
