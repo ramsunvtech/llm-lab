@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ModelPreset } from '@/lib/types';
+import Link from 'next/link';
 
 const EXAMPLES = [
   'Why is the sky blue?',
@@ -41,6 +42,23 @@ export default function Sidebar({
           L
         </div>
         <span className="text-base font-semibold text-base-100">LLM Lab</span>
+      </div>
+
+      <div className="-mt-3 flex flex-col gap-1">
+        <Link
+          href="/transformer-arch"
+          className="flex w-fit items-center gap-1.5 rounded-lg px-0.5 text-xs text-base-500 transition hover:text-base-300"
+        >
+          🏗️ Transformer Architecture
+          <span className="text-base-600">→</span>
+        </Link>
+        <Link
+          href="/attentions"
+          className="flex w-fit items-center gap-1.5 rounded-lg px-0.5 text-xs text-base-500 transition hover:text-base-300"
+        >
+          📖 Attention Bible
+          <span className="text-base-600">→</span>
+        </Link>
       </div>
 
       <div className="flex flex-col gap-2">
