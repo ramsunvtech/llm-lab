@@ -55,3 +55,20 @@ export interface StageMeta {
   title: string;
   subtitle: string;
 }
+
+export interface AttentionEntry {
+  id: string;
+  name: string;
+  abbreviation: string | null;
+  year: number;
+  introducedBy: string;
+  introducedFor: string;
+  paperTitle: string;
+  paperUrl: string;
+  status: 'Active' | 'Inactive';
+  category: string;
+  complexity: string;
+  summary: string;
+  keyIdea: string;
+  usedIn: string[];
+}
