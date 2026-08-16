@@ -1,5 +1,4 @@
 {
-  "/_not-found/page": "app/_not-found/page.js",
-  "/attentions/page": "app/attentions/page.js",
+  "/transformer-arch/page": "app/transformer-arch/page.js",
   "/page": "app/page.js"
 }
