@@ -4,8 +4,10 @@ import { useEffect, useMemo, useRef, useState, Fragment } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { EXAMPLES, Variant, TransformerExample, localAttentionRow } from '@/lib/transformer-diagram-data';
+import { EVOLUTION_STAGES, DEFAULT_STAGE_ID, EvolutionStage } from '@/lib/transformer-evolution-data';
 import { softmax } from '@/lib/math';
 import { positionalEncoding } from '@/lib/engine';
+import Controls from '@/components/Controls';
 
 const COLORS = {
   embed: '#db6f96',
@@ -30,7 +32,7 @@ const STEPS: Step[] = [
     id: 'input',
     title: 'Feeding in the input',
     description:
-      'The encoder gets the full ambiguous sentence at once. The decoder side is "shifted right" — it starts with just a start token and only ever sees the words it has already generated, never the answer in advance.',
+      'The encoder gets the full ambiguous sentence at once. The decoder side is "shifted right" — it starts with just a start token and only ever sees words it has already generated, never the answer in advance.',
     highlight: ['enc-input', 'dec-output'],
     visual: 'none',
   },
@@ -38,15 +40,15 @@ const STEPS: Step[] = [
     id: 'embed',
     title: 'Input & Output Embedding',
     description:
-      'Every token — on both sides — is looked up in an embedding table and turned into a vector. Same mechanism, two separate embedding tables (encoder vocabulary in, decoder vocabulary out).',
+      'Every token — on both sides — is looked up in an embedding table and turned into a vector. Two separate tables: encoder vocabulary in, decoder vocabulary out.',
     highlight: ['enc-embed', 'dec-embed'],
     visual: 'none',
   },
   {
     id: 'pe',
-    title: 'Positional Encoding — on both sides',
+    title: 'Positional Encoding — both sides',
     description:
-      'Attention has no built-in sense of order, so a fixed sine/cosine wave unique to each position is added to every embedding — in the encoder AND the decoder, independently, since each has its own sequence of positions to track.',
+      'Attention has no built-in sense of order, so a fixed sine/cosine wave unique to each position is added to every embedding — independently in the encoder and the decoder.',
     highlight: ['enc-pe', 'dec-pe'],
     visual: 'pe',
   },
@@ -54,7 +56,7 @@ const STEPS: Step[] = [
     id: 'enc-attn',
     title: 'Encoder Self-Attention — resolving "it"',
     description:
-      'This is the famous case. Every token computes how much it should attend to every other token — a function of all the others, all at once. Watch what happens to "it" when only the last word changes.',
+      'Every token computes how much it should attend to every other token — a function of all the others, at once. Watch "it" flip when only the last word changes.',
     highlight: ['enc-mha'],
     visual: 'encoder-attn',
   },
@@ -62,7 +64,7 @@ const STEPS: Step[] = [
     id: 'enc-ffn',
     title: 'Feed-Forward Network (×N)',
     description:
-      'After Add & Norm stabilizes the residual sum, a small MLP — two linear layers with a GELU in between — is applied to every position independently, enriching each token\u2019s representation further. The whole block (attention → Add&Norm → FFN → Add&Norm) repeats N times, each layer refining the representation the last one built.',
+      'After Add & Norm stabilizes the residual sum, an MLP enriches each token\u2019s representation. The whole block repeats N times.',
     highlight: ['enc-addnorm1', 'enc-ffn', 'enc-addnorm2'],
     visual: 'none',
   },
@@ -70,7 +72,7 @@ const STEPS: Step[] = [
     id: 'dec-mask',
     title: 'Masked Multi-Head Attention — why "masked"?',
     description:
-      'The decoder also self-attends over what it\u2019s generated so far — but it is forbidden from looking at any position after the one it\u2019s currently predicting. That\u2019s the mask: without it, predicting "animal" could just copy the answer instead of learning to infer it, and at real inference time those future words don\u2019t exist yet anyway.',
+      'The decoder self-attends over what it\u2019s generated so far, but is forbidden from looking past its current position. Without that, predicting "animal" could just copy the answer instead of inferring it.',
     highlight: ['dec-mmha'],
     visual: 'decoder-mask',
   },
@@ -78,39 +80,35 @@ const STEPS: Step[] = [
     id: 'dec-cross',
     title: 'Encoder-Decoder (Cross) Attention',
     description:
-      'Now the decoder\u2019s queries meet the encoder\u2019s keys and values — the arrow crossing over from the encoder stack. To answer correctly, the decoder must reach back into the encoder\u2019s finished representation of "it", which by now already has the right referent baked in.',
+      'The decoder\u2019s queries meet the encoder\u2019s keys and values — the arrow crossing over. To answer correctly it must reach back into the encoder\u2019s finished "it".',
     highlight: ['dec-cross'],
     visual: 'decoder-cross',
   },
   {
     id: 'dec-ffn',
     title: 'Feed-Forward Network (×N)',
-    description:
-      'Same as the encoder side: Add & Norm, a position-wise MLP, Add & Norm again — and the full three-sublayer decoder block (masked self-attn, cross-attn, FFN) repeats N times.',
+    description: 'Same as the encoder side: Add & Norm, MLP, Add & Norm — the full decoder block repeats N times.',
     highlight: ['dec-addnorm1', 'dec-ffn', 'dec-addnorm2'],
     visual: 'none',
   },
   {
     id: 'linear',
     title: 'Linear — projecting to vocabulary size',
-    description:
-      'The final decoder representation (one vector) is projected by a single learned linear layer into a vector with one number — a logit — per word in the entire output vocabulary. Higher means more likely, but these aren\u2019t probabilities yet.',
+    description: 'The final decoder vector is projected into one logit per word in the entire output vocabulary.',
     highlight: ['linear'],
     visual: 'logits',
   },
   {
     id: 'softmax',
     title: 'Softmax — logits become probabilities',
-    description:
-      'Softmax squashes every logit into a value between 0 and 1, all summing to exactly 1. Real softmax math runs right here on the logits above — nothing about this step is faked.',
+    description: 'Every logit is squashed into a value between 0 and 1, all summing to exactly 1. Real math, right here.',
     highlight: ['softmax'],
     visual: 'softmax',
   },
   {
     id: 'output',
     title: 'Predicting the next word — and looping back',
-    description:
-      'The highest-probability word is chosen, appended to the decoder\u2019s output-so-far, and fed back in as the next "shifted right" input — one word at a time, until the full answer is complete.',
+    description: 'The highest-probability word is chosen, appended, and fed back in — one word at a time — until the answer is complete.',
     highlight: ['outputprobs', 'dec-output'],
     visual: 'softmax',
   },
@@ -119,15 +117,27 @@ const STEPS: Step[] = [
 const AUTO_MS = 3400;
 
 export default function TransformerArchitecturePage() {
+  const [evolutionId, setEvolutionId] = useState<string>(DEFAULT_STAGE_ID);
+  const [evoOpen, setEvoOpen] = useState(false);
   const [variant, setVariant] = useState<Variant>('tired');
   const [stepIdx, setStepIdx] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stage: EvolutionStage = EVOLUTION_STAGES.find((s: EvolutionStage) => s.id === evolutionId) ?? EVOLUTION_STAGES[0];
   const example = EXAMPLES[variant];
   const n = example.encoderTokens.length;
+  const animated = stage.hasAnimatedWalkthrough;
+
+  const changeStage = (id: string) => {
+    setEvolutionId(id);
+    setEvoOpen(false);
+    setStepIdx(0);
+    setIsPlaying(false);
+  };
 
   useEffect(() => {
-    if (!isPlaying) return;
+    if (!isPlaying || !animated) return;
     timerRef.current = setInterval(() => {
       setStepIdx((p: number) => {
         if (p >= STEPS.length - 1) {
@@ -140,9 +150,9 @@ export default function TransformerArchitecturePage() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPlaying]);
+  }, [isPlaying, animated]);
 
-  const active = (id: string) => STEPS[stepIdx].highlight.includes(id);
+  const active = (id: string) => animated && STEPS[stepIdx].highlight.includes(id);
   const step = STEPS[stepIdx];
 
   const changeVariant = (v: Variant) => {
@@ -158,110 +168,195 @@ export default function TransformerArchitecturePage() {
 
   const probs = useMemo(() => softmax(example.candidateLogits, 1), [example]);
 
+  const showEncoder = stage.diagramType !== 'decoder-only';
+  const showDecoder = stage.diagramType !== 'encoder-only';
+  const showCross = stage.diagramType === 'encoder-decoder';
+  const singleColumn = stage.diagramType !== 'encoder-decoder';
+
   return (
-    <main className="min-h-screen bg-base-950">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 p-5 sm:p-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link href="/" className="flex items-center gap-2 text-sm text-base-400 transition hover:text-base-100">
-            <ArrowLeftIcon />
-            Back to visualizer
+    <main className="flex min-h-screen flex-col bg-base-950 md:h-screen md:flex-row md:overflow-hidden">
+      {/* LEFT SIDEBAR — everything but the diagram lives here */}
+      <aside className="flex w-full shrink-0 flex-col gap-5 border-b border-base-700 bg-base-850 p-5 md:h-full md:w-[360px] md:overflow-y-auto md:border-b-0 md:border-r">
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-base-200 text-xs font-bold text-base-950">L</div>
+          <span className="text-sm font-semibold text-base-100">LLM Lab</span>
+          <span className="ml-auto text-xs font-medium text-base-300">Transformer Architecture</span>
+        </div>
+        <div className="-mt-3 flex flex-col gap-1">
+          <Link href="/" className="flex w-fit items-center gap-1.5 text-xs text-base-500 transition hover:text-base-300">
+            ← Back to visualizer
           </Link>
-          <div className="flex items-center gap-3">
-            <Link href="/attentions" className="text-xs text-base-500 transition hover:text-base-300">
-              📖 Attention Bible
-            </Link>
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-base-200 text-xs font-bold text-base-950">L</div>
-              <span className="text-sm font-semibold text-base-100">LLM Lab</span>
-            </div>
-          </div>
+          <Link href="/attentions" className="flex w-fit items-center gap-1.5 text-xs text-base-500 transition hover:text-base-300">
+            📖 Attention Bible
+          </Link>
         </div>
 
+        {/* Evolution dropdown */}
         <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-base-100 sm:text-3xl">
-            Transformer Architecture
-          </h1>
-          <p className="max-w-2xl text-sm text-base-400 sm:text-base">
-            The full encoder-decoder stack from &ldquo;Attention Is All You Need&rdquo;, animated —
-            using the single most famous example in Transformer teaching instead of a translation demo.
-          </p>
-        </div>
-
-        <div className="flex flex-col items-start gap-3 rounded-2xl glass-panel p-4 shadow-panel sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium uppercase tracking-wide text-base-500">Task</span>
-            <p className="text-sm text-base-200">
-              Encoder reads the sentence. Decoder answers: <span className="font-medium">what does &ldquo;it&rdquo; refer to?</span>
-            </p>
-          </div>
-          <div className="flex items-center gap-1 rounded-full border border-base-700 bg-base-900 p-1">
+          <label className="px-0.5 text-xs font-medium uppercase tracking-wide text-base-500">Transformer Evolution</label>
+          <div className="relative">
             <button
-              onClick={() => changeVariant('tired')}
-              className="rounded-full px-3 py-1.5 text-xs font-medium transition"
-              style={{
-                backgroundColor: variant === 'tired' ? COLORS.attn : 'transparent',
-                color: variant === 'tired' ? '#fff' : '#8B8576',
-              }}
+              onClick={() => setEvoOpen((o: boolean) => !o)}
+              className="flex w-full items-start justify-between gap-2 rounded-xl border border-base-700 bg-base-900 px-3 py-2.5 text-left shadow-panel transition hover:border-base-600"
             >
-              &hellip;too tired
+              <span className="text-xs font-medium leading-snug text-base-100">{stage.shortLabel}</span>
+              <ChevronIcon open={evoOpen} />
             </button>
-            <button
-              onClick={() => changeVariant('wide')}
-              className="rounded-full px-3 py-1.5 text-xs font-medium transition"
-              style={{
-                backgroundColor: variant === 'wide' ? COLORS.attn : 'transparent',
-                color: variant === 'wide' ? '#fff' : '#8B8576',
-              }}
-            >
-              &hellip;too wide
-            </button>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border px-4 py-3 text-center font-mono text-sm text-base-200 shadow-panel" style={{ borderColor: `${COLORS.attn}55`, backgroundColor: `${COLORS.attn}0f` }}>
-          &ldquo;{example.sentence}&rdquo;
-        </div>
-
-        {/* controls */}
-        <div className="flex items-center justify-center gap-2 rounded-2xl glass-panel p-3 shadow-panel">
-          <IconBtn onClick={() => { setIsPlaying(false); setStepIdx(0); }} label="Restart"><RestartIcon /></IconBtn>
-          <IconBtn onClick={() => { setIsPlaying(false); setStepIdx((p: number) => Math.max(0, p - 1)); }} disabled={stepIdx === 0} label="Back"><BackIcon /></IconBtn>
-          <button
-            onClick={() => { if (stepIdx >= STEPS.length - 1) setStepIdx(0); setIsPlaying((p: boolean) => !p); }}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-white shadow-panel transition active:scale-95"
-            style={{ backgroundColor: COLORS.attn }}
-          >
-            {isPlaying ? <PauseIcon /> : <PlayIcon />}
-          </button>
-          <IconBtn onClick={() => { setIsPlaying(false); setStepIdx((p: number) => Math.min(STEPS.length - 1, p + 1)); }} disabled={stepIdx === STEPS.length - 1} label="Forward"><FwdIcon /></IconBtn>
-          <span className="ml-2 font-tabular text-xs text-base-500">{stepIdx + 1}/{STEPS.length}</span>
-        </div>
-
-        {/* step explanation */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={step.id}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.3 }}
-            className="rounded-2xl glass-panel p-5 shadow-panel"
-          >
-            <h2 className="mb-1.5 text-base font-semibold text-base-100">{step.title}</h2>
-            <p className="text-sm leading-relaxed text-base-400">{step.description}</p>
-
-            {step.visual === 'pe' && <PositionalEncodingVisual example={example} />}
-            {step.visual === 'encoder-attn' && <EncoderAttentionVisual example={example} allRows={encoderRows} />}
-            {step.visual === 'decoder-mask' && <DecoderMaskVisual example={example} />}
-            {step.visual === 'decoder-cross' && <DecoderCrossVisual example={example} />}
-            {(step.visual === 'logits' || step.visual === 'softmax') && (
-              <LogitsVisual example={example} probs={step.visual === 'softmax' ? probs : null} />
+            {evoOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setEvoOpen(false)} />
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute left-0 right-0 top-full z-50 mt-1.5 max-h-80 overflow-y-auto rounded-xl border border-base-700 bg-base-900 shadow-lg"
+                >
+                  {EVOLUTION_STAGES.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => changeStage(s.id)}
+                      className="flex w-full flex-col gap-0.5 border-b border-base-700 px-3 py-2.5 text-left transition last:border-b-0 hover:bg-base-800"
+                    >
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-medium text-base-100">{s.shortLabel}</span>
+                        {s.id === stage.id && <CheckIcon />}
+                      </span>
+                      <span className="text-[11px] text-base-500">{s.subtitle}</span>
+                    </button>
+                  ))}
+                </motion.div>
+              </>
             )}
-          </motion.div>
-        </AnimatePresence>
+          </div>
+        </div>
 
-        {/* diagram — mirrors the paper's figure: output at top, inputs at bottom */}
-        <div className="flex flex-col items-center gap-3 rounded-2xl glass-panel p-5 shadow-panel sm:p-8">
+        {/* Stage title + details */}
+        <div className="flex flex-col gap-1.5 rounded-xl border border-base-700 bg-base-900 p-3 text-xs shadow-panel">
+          <p className="font-semibold text-base-100">{stage.title}</p>
+          <p><span className="font-medium text-base-300">Architecture: </span><span className="text-base-500">{stage.architecture}</span></p>
+          <p><span className="font-medium text-base-300">Activations: </span><span className="text-base-500">{stage.activations}</span></p>
+          <p><span className="font-medium text-base-300">Key models: </span><span className="text-base-500">{stage.keyModels}</span></p>
+        </div>
+
+        {animated && (
+          <>
+            <div className="flex flex-col gap-2">
+              <label className="px-0.5 text-xs font-medium uppercase tracking-wide text-base-500">Task</label>
+              <p className="text-xs leading-relaxed text-base-400">
+                Encoder reads the sentence. Decoder answers: <span className="font-medium text-base-200">what does &ldquo;it&rdquo; refer to?</span>
+              </p>
+              <div className="flex items-center gap-1 rounded-full border border-base-700 bg-base-900 p-1">
+                <button
+                  onClick={() => changeVariant('tired')}
+                  className="flex-1 rounded-full px-2 py-1.5 text-xs font-medium transition"
+                  style={{ backgroundColor: variant === 'tired' ? COLORS.attn : 'transparent', color: variant === 'tired' ? '#fff' : '#8B8576' }}
+                >
+                  &hellip;too tired
+                </button>
+                <button
+                  onClick={() => changeVariant('wide')}
+                  className="flex-1 rounded-full px-2 py-1.5 text-xs font-medium transition"
+                  style={{ backgroundColor: variant === 'wide' ? COLORS.attn : 'transparent', color: variant === 'wide' ? '#fff' : '#8B8576' }}
+                >
+                  &hellip;too wide
+                </button>
+              </div>
+              <div className="rounded-xl border px-3 py-2 text-center font-mono text-[11px] leading-relaxed text-base-200" style={{ borderColor: `${COLORS.attn}55`, backgroundColor: `${COLORS.attn}0f` }}>
+                &ldquo;{example.sentence}&rdquo;
+              </div>
+            </div>
+
+            {/* step list */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between px-0.5">
+                <span className="text-xs font-medium uppercase tracking-wide text-base-500">Pipeline</span>
+                <span className="font-tabular text-xs text-base-500">{stepIdx + 1}/{STEPS.length}</span>
+              </div>
+              <nav className="flex flex-col gap-0.5">
+                {STEPS.map((s, i) => {
+                  const isActive = i === stepIdx;
+                  const done = i < stepIdx;
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => { setIsPlaying(false); setStepIdx(i); }}
+                      className="flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left transition"
+                      style={{ backgroundColor: isActive ? `${COLORS.attn}17` : 'transparent' }}
+                    >
+                      <span
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold"
+                        style={{
+                          backgroundColor: isActive ? COLORS.attn : done ? `${COLORS.attn}2a` : 'transparent',
+                          color: isActive ? '#fff' : done ? COLORS.attn : '#8B8576',
+                          border: isActive || done ? 'none' : '1px solid #DDD7C6',
+                        }}
+                      >
+                        {done ? '✓' : i + 1}
+                      </span>
+                      <span className={`truncate text-[12px] ${isActive ? 'font-semibold text-base-100' : done ? 'text-base-300' : 'text-base-500'}`}>
+                        {s.title}
+                      </span>
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
+
+            {/* current step detail — title, description, and its visual, all in the sidebar */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={step.id}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.25 }}
+                className="flex flex-col gap-2 rounded-xl border border-base-700 bg-base-900 p-3 shadow-panel"
+              >
+                <h2 className="text-xs font-semibold text-base-100">{step.title}</h2>
+                <p className="text-[11px] leading-relaxed text-base-400">{step.description}</p>
+
+                {step.visual === 'pe' && <PositionalEncodingVisual example={example} compact />}
+                {step.visual === 'encoder-attn' && <EncoderAttentionVisual example={example} allRows={encoderRows} compact />}
+                {step.visual === 'decoder-mask' && <DecoderMaskVisual example={example} compact />}
+                {step.visual === 'decoder-cross' && <DecoderCrossVisual example={example} compact />}
+                {(step.visual === 'logits' || step.visual === 'softmax') && (
+                  <LogitsVisual example={example} probs={step.visual === 'softmax' ? probs : null} compact />
+                )}
+              </motion.div>
+            </AnimatePresence>
+
+            {/* player */}
+            <div className="border-t border-base-700 pt-3">
+              <Controls
+                isPlaying={isPlaying}
+                onTogglePlay={() => { if (stepIdx >= STEPS.length - 1) setStepIdx(0); setIsPlaying((p: boolean) => !p); }}
+                onStepBack={() => { setIsPlaying(false); setStepIdx((p: number) => Math.max(0, p - 1)); }}
+                onStepForward={() => { setIsPlaying(false); setStepIdx((p: number) => Math.min(STEPS.length - 1, p + 1)); }}
+                onRestart={() => { setIsPlaying(false); setStepIdx(0); }}
+                canStepBack={stepIdx > 0}
+                canStepForward={stepIdx < STEPS.length - 1}
+                accent={COLORS.attn}
+              />
+            </div>
+          </>
+        )}
+
+        {!animated && (
+          <p className="text-xs leading-relaxed text-base-500">
+            The full animated step-by-step walkthrough (with a hand-verified worked example) runs on the 2017
+            original — self-attention&rsquo;s math is the shared foundation every later variant builds on. This
+            era is shown structurally: which pieces exist, and which activation / positional-encoding scheme replaced the original.
+          </p>
+        )}
+
+        <p className="mt-auto px-0.5 text-[11px] leading-relaxed text-base-500">
+          Positional encoding, softmax, and the causal mask shape are real computed math throughout.
+        </p>
+      </aside>
+
+      {/* RIGHT — diagram only */}
+      <section className="flex flex-1 items-center justify-center md:h-full md:overflow-y-auto">
+        <div className="flex w-full flex-col items-center gap-3 p-5 sm:p-10">
           <DiagramBox label="Output Probabilities" color={COLORS.softmax} active={active('outputprobs')} />
           <ArrowUp />
           <DiagramBox label="Softmax" color={COLORS.softmax} active={active('softmax')} />
@@ -269,51 +364,51 @@ export default function TransformerArchitecturePage() {
           <DiagramBox label="Linear" color={COLORS.linear} active={active('linear')} />
           <ArrowUp />
 
-          <div className="grid w-full grid-cols-1 gap-6 sm:grid-cols-2">
-            {/* encoder */}
-            <div className="flex flex-col items-center gap-2">
-              <NxWrap>
-                <DiagramBox label="Add & Norm" color={COLORS.addnorm} active={active('enc-addnorm2')} small />
-                <DiagramBox label="Feed Forward" color={COLORS.ffn} active={active('enc-ffn')} />
-                <DiagramBox label="Add & Norm" color={COLORS.addnorm} active={active('enc-addnorm1')} small />
-                <DiagramBox label="Multi-Head Attention" color={COLORS.attn} active={active('enc-mha')} />
-              </NxWrap>
-              <ArrowUp />
-              <DiagramBox label="Positional Encoding ⊕" color={COLORS.pe} active={active('enc-pe')} small />
-              <ArrowUp />
-              <DiagramBox label="Input Embedding" color={COLORS.embed} active={active('enc-embed')} small />
-              <ArrowUp />
-              <DiagramBox label="Inputs (encoder)" color="#8B8576" active={active('enc-input')} small />
-              <span className="text-[10px] uppercase tracking-wide text-base-500">Encoder</span>
-            </div>
+          <div className={`grid w-full gap-8 ${singleColumn ? 'max-w-xs grid-cols-1' : 'max-w-2xl grid-cols-1 sm:grid-cols-2'}`}>
+            {showEncoder && (
+              <div className="flex flex-col items-center gap-2">
+                <NxWrap>
+                  <DiagramBox label="Add & Norm" color={COLORS.addnorm} active={active('enc-addnorm2')} small />
+                  <DiagramBox label="Feed Forward" sublabel={stage.ffnLabel} color={COLORS.ffn} active={active('enc-ffn')} />
+                  <DiagramBox label="Add & Norm" color={COLORS.addnorm} active={active('enc-addnorm1')} small />
+                  <DiagramBox label={showDecoder ? 'Multi-Head Attention' : 'Multi-Head Attention (bidirectional)'} color={COLORS.attn} active={active('enc-mha')} />
+                </NxWrap>
+                <ArrowUp />
+                <DiagramBox label="Positional Encoding ⊕" sublabel={stage.peLabel} color={COLORS.pe} active={active('enc-pe')} small />
+                <ArrowUp />
+                <DiagramBox label="Input Embedding" color={COLORS.embed} active={active('enc-embed')} small />
+                <ArrowUp />
+                <DiagramBox label="Inputs" color="#8B8576" active={active('enc-input')} small />
+                <span className="text-[10px] uppercase tracking-wide text-base-500">{showDecoder ? 'Encoder' : 'Encoder (only)'}</span>
+              </div>
+            )}
 
-            {/* decoder */}
-            <div className="flex flex-col items-center gap-2">
-              <NxWrap>
-                <DiagramBox label="Add & Norm" color={COLORS.addnorm} active={active('dec-addnorm2')} small />
-                <DiagramBox label="Feed Forward" color={COLORS.ffn} active={active('dec-ffn')} />
-                <DiagramBox label="Add & Norm" color={COLORS.addnorm} active={active('dec-addnorm1')} small />
-                <DiagramBox label="Multi-Head Attention" sublabel="(encoder-decoder)" color={COLORS.attn} active={active('dec-cross')} />
-                <DiagramBox label="Add & Norm" color={COLORS.addnorm} active={active('dec-mmha')} small />
-                <DiagramBox label="Masked Multi-Head Attention" color={COLORS.attn} active={active('dec-mmha')} />
-              </NxWrap>
-              <ArrowUp />
-              <DiagramBox label="Positional Encoding ⊕" color={COLORS.pe} active={active('dec-pe')} small />
-              <ArrowUp />
-              <DiagramBox label="Output Embedding" color={COLORS.embed} active={active('dec-embed')} small />
-              <ArrowUp />
-              <DiagramBox label="Outputs (shifted right)" color="#8B8576" active={active('dec-output')} small />
-              <span className="text-[10px] uppercase tracking-wide text-base-500">Decoder</span>
-            </div>
+            {showDecoder && (
+              <div className="flex flex-col items-center gap-2">
+                <NxWrap>
+                  <DiagramBox label="Add & Norm" color={COLORS.addnorm} active={active('dec-addnorm2')} small />
+                  <DiagramBox label="Feed Forward" sublabel={stage.ffnLabel} color={COLORS.ffn} active={active('dec-ffn')} />
+                  {showCross && (
+                    <>
+                      <DiagramBox label="Add & Norm" color={COLORS.addnorm} active={active('dec-addnorm1')} small />
+                      <DiagramBox label="Multi-Head Attention" sublabel="(encoder-decoder)" color={COLORS.attn} active={active('dec-cross')} />
+                    </>
+                  )}
+                  <DiagramBox label="Add & Norm" color={COLORS.addnorm} active={active('dec-mmha')} small />
+                  <DiagramBox label="Masked Multi-Head Attention" color={COLORS.attn} active={active('dec-mmha')} />
+                </NxWrap>
+                <ArrowUp />
+                <DiagramBox label="Positional Encoding ⊕" sublabel={stage.peLabel} color={COLORS.pe} active={active('dec-pe')} small />
+                <ArrowUp />
+                <DiagramBox label="Output Embedding" color={COLORS.embed} active={active('dec-embed')} small />
+                <ArrowUp />
+                <DiagramBox label="Outputs (shifted right)" color="#8B8576" active={active('dec-output')} small />
+                <span className="text-[10px] uppercase tracking-wide text-base-500">{showEncoder ? 'Decoder' : 'Decoder (only)'}</span>
+              </div>
+            )}
           </div>
         </div>
-
-        <p className="text-center text-xs text-base-500">
-          Encoder self-attention and softmax run on real math throughout. The attention weights for
-          resolving &ldquo;it&rdquo; are hand-set to match how this example is actually documented —
-          a random-weight simulation can&rsquo;t know what a pronoun refers to.
-        </p>
-      </div>
+      </section>
     </main>
   );
 }
@@ -321,9 +416,7 @@ export default function TransformerArchitecturePage() {
 function NxWrap({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative flex w-full flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-base-700 p-3">
-      <span className="absolute -right-2 -top-3 rounded-full bg-base-900 px-2 py-0.5 text-[10px] font-bold text-base-400 shadow-panel">
-        ×N
-      </span>
+      <span className="absolute -right-2 -top-3 rounded-full bg-base-900 px-2 py-0.5 text-[10px] font-bold text-base-400 shadow-panel">×N</span>
       {children}
     </div>
   );
@@ -346,7 +439,7 @@ function DiagramBox({
     <motion.div
       animate={{ scale: active ? 1.045 : 1 }}
       transition={{ duration: 0.3 }}
-      className={`w-full max-w-[220px] rounded-lg text-center font-medium ${small ? 'px-2.5 py-1.5 text-[11px]' : 'px-3 py-2.5 text-xs sm:text-sm'}`}
+      className={`w-full max-w-[240px] rounded-lg text-center font-medium ${small ? 'px-2.5 py-1.5 text-[11px]' : 'px-3 py-2.5 text-xs sm:text-sm'}`}
       style={{
         backgroundColor: `${color}1f`,
         color,
@@ -363,10 +456,10 @@ function ArrowUp() {
   return <div className="text-base-600">↑</div>;
 }
 
-function PositionalEncodingVisual({ example }: { example: TransformerExample }) {
+function PositionalEncodingVisual({ example, compact }: { example: TransformerExample; compact?: boolean }) {
   const n = example.encoderTokens.length;
-  const width = 560;
-  const height = 70;
+  const width = compact ? 300 : 560;
+  const height = compact ? 50 : 70;
   const wavePath = (dim: number) => {
     const pts: string[] = [];
     const steps = 100;
@@ -374,31 +467,21 @@ function PositionalEncodingVisual({ example }: { example: TransformerExample }) 
       const pos = (s / steps) * (n - 1);
       const val = positionalEncoding(pos, 16)[dim] ?? 0;
       const x = (s / steps) * width;
-      const y = height / 2 - val * (height / 2 - 6);
+      const y = height / 2 - val * (height / 2 - 5);
       pts.push(`${s === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`);
     }
     return pts.join(' ');
   };
   return (
-    <div className="mt-4 flex flex-col gap-2">
-      <p className="text-xs text-base-500">
-        The real sin/cos formula, plotted across all {n} positions — every dimension oscillates at a
-        different frequency, giving every position a unique fingerprint:
-      </p>
-      <div className="overflow-x-auto rounded-xl border border-base-700 bg-base-900 p-3">
-        <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ minWidth: 420 }}>
+    <div className="flex flex-col gap-1">
+      <p className="text-[10px] text-base-500">Real sin/cos formula across all {n} positions:</p>
+      <div className="overflow-x-auto rounded-lg border border-base-700 bg-base-950 p-2">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ minWidth: compact ? 260 : 420 }}>
           {[0, 1, 2, 3].map((d) => (
-            <path
-              key={d}
-              d={wavePath(d)}
-              fill="none"
-              stroke={COLORS.pe}
-              strokeWidth={1.4}
-              strokeOpacity={0.85 - d * 0.16}
-            />
+            <path key={d} d={wavePath(d)} fill="none" stroke={COLORS.pe} strokeWidth={1.2} strokeOpacity={0.85 - d * 0.16} />
           ))}
           {example.encoderTokens.map((_, i) => (
-            <circle key={i} cx={(i / (n - 1)) * width} cy={height / 2} r={2.8} fill={COLORS.pe} />
+            <circle key={i} cx={(i / (n - 1)) * width} cy={height / 2} r={2.2} fill={COLORS.pe} />
           ))}
         </svg>
       </div>
@@ -406,18 +489,23 @@ function PositionalEncodingVisual({ example }: { example: TransformerExample }) 
   );
 }
 
-function EncoderAttentionVisual({ example, allRows }: { example: TransformerExample; allRows: (number[] | null)[] }) {
+function EncoderAttentionVisual({
+  example,
+  allRows,
+  compact,
+}: {
+  example: TransformerExample;
+  allRows: (number[] | null)[];
+  compact?: boolean;
+}) {
   const n = example.encoderTokens.length;
-  const cell = n > 9 ? 26 : 30;
+  const cell = compact ? 15 : n > 9 ? 26 : 30;
   return (
-    <div className="mt-4 flex flex-col gap-5">
-      <div className="flex flex-col gap-1.5">
-        <p className="text-xs text-base-500">
-          The full picture — every token attends to every other token (Head A shown; the outlined row is
-          &ldquo;it&rdquo;):
-        </p>
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1">
+        <p className="text-[10px] text-base-500">Head A, all tokens (outlined row is &ldquo;it&rdquo;):</p>
         <div className="overflow-x-auto">
-          <div className="inline-grid gap-[2px]" style={{ gridTemplateColumns: `repeat(${n}, ${cell}px)` }}>
+          <div className="inline-grid gap-[1px]" style={{ gridTemplateColumns: `repeat(${n}, ${cell}px)` }}>
             {example.encoderTokens.map((_, r) => {
               const row = r === example.itIndex ? example.encoderAttentionHeadCoref : allRows[r]!;
               return row.map((w, c) => (
@@ -425,11 +513,11 @@ function EncoderAttentionVisual({ example, allRows }: { example: TransformerExam
                   key={`${r}-${c}`}
                   className="rounded-sm"
                   style={{
-                    width: cell - 2,
-                    height: cell - 2,
+                    width: cell - 1,
+                    height: cell - 1,
                     backgroundColor: COLORS.attn,
                     opacity: 0.12 + w * 0.88,
-                    outline: r === example.itIndex ? `2px solid ${COLORS.attn}` : 'none',
+                    outline: r === example.itIndex ? `1.5px solid ${COLORS.attn}` : 'none',
                     outlineOffset: -1,
                   }}
                   title={`${example.encoderTokens[r]} → ${example.encoderTokens[c]}: ${(w * 100).toFixed(0)}%`}
@@ -439,36 +527,33 @@ function EncoderAttentionVisual({ example, allRows }: { example: TransformerExam
           </div>
         </div>
       </div>
-
       <TokenRow tokens={example.encoderTokens} highlightIdx={example.itIndex} />
-      <AttnBar label={`Head A — coreference (it → ${example.focusWord})`} tokens={example.encoderTokens} weights={example.encoderAttentionHeadCoref} color={COLORS.attn} winnerIdx={example.focusIndex} />
-      <AttnBar label={`Head B — property (it → ${example.adjectiveWord})`} tokens={example.encoderTokens} weights={example.encoderAttentionHeadProperty} color="#c026d3" winnerIdx={example.encoderTokens.length - 1} />
+      <AttnBar label={`Head A — coref (it → ${example.focusWord})`} tokens={example.encoderTokens} weights={example.encoderAttentionHeadCoref} color={COLORS.attn} winnerIdx={example.focusIndex} compact={compact} />
+      <AttnBar label={`Head B — property (it → ${example.adjectiveWord})`} tokens={example.encoderTokens} weights={example.encoderAttentionHeadProperty} color="#c026d3" winnerIdx={example.encoderTokens.length - 1} compact={compact} />
     </div>
   );
 }
 
-function DecoderMaskVisual({ example }: { example: TransformerExample }) {
-  const labels = ['⟨start⟩', 'The', example.focusWord];
+function DecoderMaskVisual({ example, compact }: { example: TransformerExample; compact?: boolean }) {
+  const labels = ['⟨s⟩', 'The', example.focusWord];
+  const cell = compact ? 44 : 60;
   return (
-    <div className="mt-4 flex flex-col items-center gap-2">
-      <div className="grid" style={{ gridTemplateColumns: `70px repeat(${labels.length}, 60px)` }}>
+    <div className="flex flex-col items-center gap-2">
+      <div className="grid" style={{ gridTemplateColumns: `48px repeat(${labels.length}, ${cell}px)` }}>
         <div />
         {labels.map((l) => (
-          <div key={l} className="pb-1 text-center font-mono text-[10px] text-base-500">{l}</div>
+          <div key={l} className="pb-1 text-center font-mono text-[9px] text-base-500">{l}</div>
         ))}
         {labels.map((rowLabel, r) => (
           <Fragment key={r}>
-            <div className="pr-2 text-right font-mono text-[10px] text-base-500">{rowLabel}</div>
+            <div className="pr-1 text-right font-mono text-[9px] text-base-500">{rowLabel}</div>
             {labels.map((_, c) => {
               const visible = c <= r;
               return (
                 <div
                   key={`${r}-${c}`}
-                  className="m-0.5 flex h-9 items-center justify-center rounded text-xs"
-                  style={{
-                    backgroundColor: visible ? `${COLORS.attn}2a` : '#00000008',
-                    color: visible ? COLORS.attn : '#B9B2A0',
-                  }}
+                  className="m-0.5 flex items-center justify-center rounded text-[11px]"
+                  style={{ height: cell - 6, backgroundColor: visible ? `${COLORS.attn}2a` : '#00000008', color: visible ? COLORS.attn : '#B9B2A0' }}
                 >
                   {visible ? '✓' : '✕'}
                 </div>
@@ -477,50 +562,36 @@ function DecoderMaskVisual({ example }: { example: TransformerExample }) {
           </Fragment>
         ))}
       </div>
-      <p className="max-w-sm text-center text-xs text-base-500">
-        ✓ = allowed to attend · ✕ = masked out. Row = query position, column = key position.
-      </p>
+      <p className="text-center text-[10px] text-base-500">✓ allowed · ✕ masked</p>
     </div>
   );
 }
 
-function DecoderCrossVisual({ example }: { example: TransformerExample }) {
+function DecoderCrossVisual({ example, compact }: { example: TransformerExample; compact?: boolean }) {
   return (
-    <div className="mt-4 flex flex-col gap-3">
-      <p className="text-xs text-base-500">
-        Decoder query (generating &ldquo;{example.focusWord}&rdquo;) attends over every encoder position:
-      </p>
-      <AttnBar label="Cross-attention" tokens={example.encoderTokens} weights={example.decoderCrossAttention} color={COLORS.attn} winnerIdx={example.itIndex} secondaryIdx={example.focusIndex} />
+    <div className="flex flex-col gap-2">
+      <p className="text-[10px] text-base-500">Decoder query (&ldquo;{example.focusWord}&rdquo;) over every encoder position:</p>
+      <AttnBar label="Cross-attention" tokens={example.encoderTokens} weights={example.decoderCrossAttention} color={COLORS.attn} winnerIdx={example.itIndex} secondaryIdx={example.focusIndex} compact={compact} />
     </div>
   );
 }
 
-function LogitsVisual({ example, probs }: { example: TransformerExample; probs: number[] | null }) {
+function LogitsVisual({ example, probs, compact }: { example: TransformerExample; probs: number[] | null; compact?: boolean }) {
   const values = probs ?? example.candidateLogits;
   const max = Math.max(...values.map(Math.abs));
   return (
-    <div className="mt-4 flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1">
       {example.candidateVocab.map((word, i) => {
         const isWinner = word === example.focusWord;
         const v = values[i];
         const widthPct = probs ? v * 100 : (Math.abs(v) / max) * 100;
         return (
-          <div key={word} className="flex items-center gap-2">
-            <span className="w-14 shrink-0 text-right font-mono text-xs" style={{ color: isWinner ? COLORS.softmax : '#8B8576' }}>
-              {word}
-            </span>
-            <div className="h-3.5 flex-1 overflow-hidden rounded-full bg-base-800">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${widthPct}%` }}
-                transition={{ duration: 0.5 }}
-                className="h-full rounded-full"
-                style={{ backgroundColor: isWinner ? COLORS.softmax : '#DDD7C6' }}
-              />
+          <div key={word} className="flex items-center gap-1.5">
+            <span className="w-11 shrink-0 text-right font-mono text-[10px]" style={{ color: isWinner ? COLORS.softmax : '#8B8576' }}>{word}</span>
+            <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-base-800">
+              <motion.div initial={{ width: 0 }} animate={{ width: `${widthPct}%` }} transition={{ duration: 0.5 }} className="h-full rounded-full" style={{ backgroundColor: isWinner ? COLORS.softmax : '#DDD7C6' }} />
             </div>
-            <span className="w-12 shrink-0 font-mono text-[11px] text-base-500">
-              {probs ? `${(v * 100).toFixed(0)}%` : v.toFixed(1)}
-            </span>
+            <span className="w-9 shrink-0 font-mono text-[9px] text-base-500">{probs ? `${(v * 100).toFixed(0)}%` : v.toFixed(1)}</span>
           </div>
         );
       })}
@@ -530,17 +601,9 @@ function LogitsVisual({ example, probs }: { example: TransformerExample; probs: 
 
 function TokenRow({ tokens, highlightIdx }: { tokens: string[]; highlightIdx: number }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap gap-1">
       {tokens.map((t, i) => (
-        <span
-          key={i}
-          className="rounded-md px-2 py-1 font-mono text-xs"
-          style={{
-            backgroundColor: i === highlightIdx ? `${COLORS.attn}2a` : 'transparent',
-            color: i === highlightIdx ? COLORS.attn : '#4E4A3F',
-            fontWeight: i === highlightIdx ? 700 : 400,
-          }}
-        >
+        <span key={i} className="rounded px-1.5 py-0.5 font-mono text-[10px]" style={{ backgroundColor: i === highlightIdx ? `${COLORS.attn}2a` : 'transparent', color: i === highlightIdx ? COLORS.attn : '#4E4A3F', fontWeight: i === highlightIdx ? 700 : 400 }}>
           {t}
         </span>
       ))}
@@ -555,6 +618,7 @@ function AttnBar({
   color,
   winnerIdx,
   secondaryIdx,
+  compact,
 }: {
   label: string;
   tokens: string[];
@@ -562,25 +626,17 @@ function AttnBar({
   color: string;
   winnerIdx: number;
   secondaryIdx?: number;
+  compact?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-[11px] font-medium text-base-400">{label}</span>
-      <div className="flex items-end gap-1">
+      <span className="text-[10px] font-medium text-base-400">{label}</span>
+      <div className="flex items-end gap-0.5 overflow-x-auto">
         {tokens.map((t, i) => (
-          <div key={i} className="flex flex-1 flex-col items-center gap-1">
-            <motion.div
-              initial={{ height: 0 }}
-              animate={{ height: `${weights[i] * 90 + 4}px` }}
-              transition={{ duration: 0.5, delay: i * 0.02 }}
-              className="w-full rounded-t"
-              style={{ backgroundColor: i === winnerIdx || i === secondaryIdx ? color : `${color}33` }}
-            />
-            <span
-              className="font-mono text-[9px]"
-              style={{ color: i === winnerIdx ? color : '#8B8576', fontWeight: i === winnerIdx ? 700 : 400 }}
-            >
-              {t.length > 5 ? t.slice(0, 5) + '…' : t}
+          <div key={i} className="flex flex-1 flex-col items-center gap-0.5" style={{ minWidth: compact ? 22 : undefined }}>
+            <motion.div initial={{ height: 0 }} animate={{ height: `${weights[i] * (compact ? 55 : 90) + 3}px` }} transition={{ duration: 0.5, delay: i * 0.02 }} className="w-full rounded-t" style={{ backgroundColor: i === winnerIdx || i === secondaryIdx ? color : `${color}33` }} />
+            <span className="font-mono text-[8px]" style={{ color: i === winnerIdx ? color : '#8B8576', fontWeight: i === winnerIdx ? 700 : 400 }}>
+              {t.length > 4 ? t.slice(0, 4) + '…' : t}
             </span>
           </div>
         ))}
@@ -589,16 +645,17 @@ function AttnBar({
   );
 }
 
-function IconBtn({ children, onClick, disabled, label }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; label: string }) {
+function ChevronIcon({ open }: { open: boolean }) {
   return (
-    <button onClick={onClick} disabled={disabled} aria-label={label} className="flex h-9 w-9 items-center justify-center rounded-full text-base-400 transition hover:bg-base-800 hover:text-base-200 disabled:cursor-not-allowed disabled:opacity-30">
-      {children}
-    </button>
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" className="mt-0.5 shrink-0 text-base-500 transition-transform" style={{ transform: open ? 'rotate(180deg)' : 'none' }}>
+      <path d="M4 6l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
-function PlayIcon() { return (<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5-9-5.5z" /></svg>); }
-function PauseIcon() { return (<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="2.5" width="3.2" height="11" rx="0.8" /><rect x="9.3" y="2.5" width="3.2" height="11" rx="0.8" /></svg>); }
-function FwdIcon() { return (<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2.5v11l7-5.5-7-5.5z" /><rect x="11.5" y="2.5" width="1.6" height="11" rx="0.6" /></svg>); }
-function BackIcon() { return (<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M13 2.5v11l-7-5.5 7-5.5z" /><rect x="2.9" y="2.5" width="1.6" height="11" rx="0.6" /></svg>); }
-function RestartIcon() { return (<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M13.5 8A5.5 5.5 0 1 1 11.8 4" strokeLinecap="round" /><path d="M13.7 2v3.3H10.4" strokeLinecap="round" strokeLinejoin="round" /></svg>); }
-function ArrowLeftIcon() { return (<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M10 3L5 8l5 5" strokeLinecap="round" strokeLinejoin="round" /></svg>); }
+function CheckIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-emerald-600">
+      <path d="M3 8l3.5 3.5L13 5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
