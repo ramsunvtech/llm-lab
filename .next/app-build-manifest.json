@@ -3,6 +3,7 @@
     "/transformer-arch/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
+      "static/css/app/transformer-arch/page.css",
       "static/chunks/app/transformer-arch/page.js"
     ],
     "/layout": [
