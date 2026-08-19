@@ -172,6 +172,9 @@ export default function TransformerArchitecturePage() {
   const showDecoder = stage.diagramType !== 'encoder-only';
   const showCross = stage.diagramType === 'encoder-decoder';
   const singleColumn = stage.diagramType !== 'encoder-decoder';
+  const ffnBoxLabel = stage.moe ? 'Sparse MoE FFN' : 'Feed Forward';
+  const decoderAttnLabel = stage.attnLabel ?? 'Masked Multi-Head Attention';
+  const encoderAttnLabel = showDecoder ? 'Multi-Head Attention' : 'Multi-Head Attention (bidirectional)';
 
   return (
     <main className="flex min-h-screen flex-col bg-base-950 md:h-screen md:flex-row md:overflow-hidden">
@@ -236,6 +239,7 @@ export default function TransformerArchitecturePage() {
           <p><span className="font-medium text-base-300">Architecture: </span><span className="text-base-500">{stage.architecture}</span></p>
           <p><span className="font-medium text-base-300">Activations: </span><span className="text-base-500">{stage.activations}</span></p>
           <p><span className="font-medium text-base-300">Key models: </span><span className="text-base-500">{stage.keyModels}</span></p>
+          <p><span className="font-medium text-base-300">Struggles: </span><span className="text-base-500">{stage.struggles}</span></p>
         </div>
 
         {animated && (
@@ -354,9 +358,9 @@ export default function TransformerArchitecturePage() {
         </p>
       </aside>
 
-      {/* RIGHT — diagram only */}
-      <section className="flex flex-1 items-center justify-center md:h-full md:overflow-y-auto">
-        <div className="flex w-full flex-col items-center gap-3 p-5 sm:p-10">
+      {/* RIGHT — diagram only, fixed within the viewport, no scroll */}
+      <section className="flex flex-1 items-center justify-center overflow-hidden md:h-full">
+        <div className="flex w-full flex-col items-center gap-1 p-3 sm:p-4">
           <DiagramBox label="Output Probabilities" color={COLORS.softmax} active={active('outputprobs')} />
           <ArrowUp />
           <DiagramBox label="Softmax" color={COLORS.softmax} active={active('softmax')} />
@@ -364,14 +368,14 @@ export default function TransformerArchitecturePage() {
           <DiagramBox label="Linear" color={COLORS.linear} active={active('linear')} />
           <ArrowUp />
 
-          <div className={`grid w-full gap-8 ${singleColumn ? 'max-w-xs grid-cols-1' : 'max-w-2xl grid-cols-1 sm:grid-cols-2'}`}>
+          <div className={`grid w-full gap-3 ${singleColumn ? 'max-w-[210px] grid-cols-1' : 'max-w-xl grid-cols-1 sm:grid-cols-2'}`}>
             {showEncoder && (
-              <div className="flex flex-col items-center gap-2">
+              <div className="flex flex-col items-center gap-1">
                 <NxWrap>
                   <DiagramBox label="Add & Norm" color={COLORS.addnorm} active={active('enc-addnorm2')} small />
-                  <DiagramBox label="Feed Forward" sublabel={stage.ffnLabel} color={COLORS.ffn} active={active('enc-ffn')} />
+                  <DiagramBox label={ffnBoxLabel} sublabel={stage.ffnLabel} color={COLORS.ffn} active={active('enc-ffn')} />
                   <DiagramBox label="Add & Norm" color={COLORS.addnorm} active={active('enc-addnorm1')} small />
-                  <DiagramBox label={showDecoder ? 'Multi-Head Attention' : 'Multi-Head Attention (bidirectional)'} color={COLORS.attn} active={active('enc-mha')} />
+                  <DiagramBox label={encoderAttnLabel} color={COLORS.attn} active={active('enc-mha')} />
                 </NxWrap>
                 <ArrowUp />
                 <DiagramBox label="Positional Encoding ⊕" sublabel={stage.peLabel} color={COLORS.pe} active={active('enc-pe')} small />
@@ -379,15 +383,15 @@ export default function TransformerArchitecturePage() {
                 <DiagramBox label="Input Embedding" color={COLORS.embed} active={active('enc-embed')} small />
                 <ArrowUp />
                 <DiagramBox label="Inputs" color="#8B8576" active={active('enc-input')} small />
-                <span className="text-[10px] uppercase tracking-wide text-base-500">{showDecoder ? 'Encoder' : 'Encoder (only)'}</span>
+                <span className="text-[9px] uppercase tracking-wide text-base-500">{showDecoder ? 'Encoder' : 'Encoder (only)'}</span>
               </div>
             )}
 
             {showDecoder && (
-              <div className="flex flex-col items-center gap-2">
+              <div className="flex flex-col items-center gap-1">
                 <NxWrap>
                   <DiagramBox label="Add & Norm" color={COLORS.addnorm} active={active('dec-addnorm2')} small />
-                  <DiagramBox label="Feed Forward" sublabel={stage.ffnLabel} color={COLORS.ffn} active={active('dec-ffn')} />
+                  <DiagramBox label={ffnBoxLabel} sublabel={stage.ffnLabel} color={COLORS.ffn} active={active('dec-ffn')} />
                   {showCross && (
                     <>
                       <DiagramBox label="Add & Norm" color={COLORS.addnorm} active={active('dec-addnorm1')} small />
@@ -395,7 +399,7 @@ export default function TransformerArchitecturePage() {
                     </>
                   )}
                   <DiagramBox label="Add & Norm" color={COLORS.addnorm} active={active('dec-mmha')} small />
-                  <DiagramBox label="Masked Multi-Head Attention" color={COLORS.attn} active={active('dec-mmha')} />
+                  <DiagramBox label={decoderAttnLabel} color={COLORS.attn} active={active('dec-mmha')} />
                 </NxWrap>
                 <ArrowUp />
                 <DiagramBox label="Positional Encoding ⊕" sublabel={stage.peLabel} color={COLORS.pe} active={active('dec-pe')} small />
@@ -403,7 +407,7 @@ export default function TransformerArchitecturePage() {
                 <DiagramBox label="Output Embedding" color={COLORS.embed} active={active('dec-embed')} small />
                 <ArrowUp />
                 <DiagramBox label="Outputs (shifted right)" color="#8B8576" active={active('dec-output')} small />
-                <span className="text-[10px] uppercase tracking-wide text-base-500">{showEncoder ? 'Decoder' : 'Decoder (only)'}</span>
+                <span className="text-[9px] uppercase tracking-wide text-base-500">{showEncoder ? 'Decoder' : 'Decoder (only)'}</span>
               </div>
             )}
           </div>
@@ -415,8 +419,8 @@ export default function TransformerArchitecturePage() {
 
 function NxWrap({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative flex w-full flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-base-700 p-3">
-      <span className="absolute -right-2 -top-3 rounded-full bg-base-900 px-2 py-0.5 text-[10px] font-bold text-base-400 shadow-panel">×N</span>
+    <div className="relative flex w-full flex-col items-center gap-1 rounded-xl border-2 border-dashed border-base-700 p-2">
+      <span className="absolute -right-1.5 -top-2.5 rounded-full bg-base-900 px-1.5 py-0.5 text-[9px] font-bold text-base-400 shadow-panel">×N</span>
       {children}
     </div>
   );
@@ -439,21 +443,21 @@ function DiagramBox({
     <motion.div
       animate={{ scale: active ? 1.045 : 1 }}
       transition={{ duration: 0.3 }}
-      className={`w-full max-w-[240px] rounded-lg text-center font-medium ${small ? 'px-2.5 py-1.5 text-[11px]' : 'px-3 py-2.5 text-xs sm:text-sm'}`}
+      className={`w-full max-w-[190px] rounded-md text-center font-medium leading-tight ${small ? 'px-2 py-1 text-[9px]' : 'px-2 py-1.5 text-[10px] sm:text-[11px]'}`}
       style={{
         backgroundColor: `${color}1f`,
         color,
-        boxShadow: active ? `0 0 0 2px ${color}, 0 10px 24px -10px ${color}88` : `0 0 0 1px ${color}33`,
+        boxShadow: active ? `0 0 0 2px ${color}, 0 8px 18px -10px ${color}88` : `0 0 0 1px ${color}33`,
       }}
     >
       {label}
-      {sublabel && <div className="text-[9px] font-normal opacity-70">{sublabel}</div>}
+      {sublabel && <div className="text-[8px] font-normal opacity-70">{sublabel}</div>}
     </motion.div>
   );
 }
 
 function ArrowUp() {
-  return <div className="text-base-600">↑</div>;
+  return <div className="text-[10px] leading-none text-base-600">↑</div>;
 }
 
 function PositionalEncodingVisual({ example, compact }: { example: TransformerExample; compact?: boolean }) {
