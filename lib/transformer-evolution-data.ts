@@ -51,7 +51,7 @@ export const EVOLUTION_STAGES: EvolutionStage[] = [
     peLabel: 'Learned',
     moe: false,
     task: 'Given a sentence with a word masked out, use full bidirectional context to predict the missing word — not next-word generation.',
-    hasAnimatedWalkthrough: false,
+    hasAnimatedWalkthrough: true,
   },
   {
     id: 'gpt1-2018',
@@ -68,7 +68,7 @@ export const EVOLUTION_STAGES: EvolutionStage[] = [
     peLabel: 'Learned',
     moe: false,
     task: 'Given a prompt, predict the next word one token at a time, autoregressively.',
-    hasAnimatedWalkthrough: false,
+    hasAnimatedWalkthrough: true,
   },
   {
     id: 'dense-scaling-2019-2020',
@@ -85,7 +85,7 @@ export const EVOLUTION_STAGES: EvolutionStage[] = [
     peLabel: 'Learned',
     moe: false,
     task: 'Given a prompt, predict the next word one token at a time — the same autoregressive generation as GPT-1, now at much larger scale.',
-    hasAnimatedWalkthrough: false,
+    hasAnimatedWalkthrough: true,
   },
   {
     id: 'switch-2021',
@@ -102,7 +102,7 @@ export const EVOLUTION_STAGES: EvolutionStage[] = [
     peLabel: 'Relative Position Bias',
     moe: true,
     task: 'Encoder resolves the input while routing each token through one selected expert FFN; decoder generates output the same way, expert-routed.',
-    hasAnimatedWalkthrough: false,
+    hasAnimatedWalkthrough: true,
   },
   {
     id: 'rlhf-moe-2022-2023',
@@ -118,7 +118,7 @@ export const EVOLUTION_STAGES: EvolutionStage[] = [
     peLabel: 'RoPE (Rotary)',
     moe: true,
     task: 'Given a prompt, predict the next word one token at a time, now guided by RLHF alignment and (for Mixtral) top-2 expert routing.',
-    hasAnimatedWalkthrough: false,
+    hasAnimatedWalkthrough: true,
   },
   {
     id: 'advanced-moe-2024-2026',
@@ -136,7 +136,7 @@ export const EVOLUTION_STAGES: EvolutionStage[] = [
     attnLabel: 'Masked Multi-Head Latent Attention (MLA)',
     moe: true,
     task: 'Given a prompt, predict the next word one token at a time, using latent-compressed attention and fine-grained expert routing.',
-    hasAnimatedWalkthrough: false,
+    hasAnimatedWalkthrough: true,
   },
 ];
 

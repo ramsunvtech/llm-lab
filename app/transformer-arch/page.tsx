@@ -27,92 +27,217 @@ interface Step {
   visual: 'none' | 'pe' | 'encoder-attn' | 'decoder-mask' | 'decoder-cross' | 'logits' | 'softmax';
 }
 
-const STEPS: Step[] = [
-  {
-    id: 'input',
-    title: 'Feeding in the input',
-    description:
-      'The encoder gets the full ambiguous sentence at once. The decoder side is "shifted right" — it starts with just a start token and only ever sees words it has already generated, never the answer in advance.',
-    highlight: ['enc-input', 'dec-output'],
-    visual: 'none',
-  },
-  {
-    id: 'embed',
-    title: 'Input & Output Embedding',
-    description:
-      'Every token — on both sides — is looked up in an embedding table and turned into a vector. Two separate tables: encoder vocabulary in, decoder vocabulary out.',
-    highlight: ['enc-embed', 'dec-embed'],
-    visual: 'none',
-  },
-  {
-    id: 'pe',
-    title: 'Positional Encoding — both sides',
-    description:
-      'Attention has no built-in sense of order, so a fixed sine/cosine wave unique to each position is added to every embedding — independently in the encoder and the decoder.',
-    highlight: ['enc-pe', 'dec-pe'],
-    visual: 'pe',
-  },
-  {
-    id: 'enc-attn',
-    title: 'Encoder Self-Attention — resolving "it"',
-    description:
-      'Every token computes how much it should attend to every other token — a function of all the others, at once. Watch "it" flip when only the last word changes.',
-    highlight: ['enc-mha'],
-    visual: 'encoder-attn',
-  },
-  {
-    id: 'enc-ffn',
-    title: 'Feed-Forward Network (×N)',
-    description:
-      'After Add & Norm stabilizes the residual sum, an MLP enriches each token\u2019s representation. The whole block repeats N times.',
-    highlight: ['enc-addnorm1', 'enc-ffn', 'enc-addnorm2'],
-    visual: 'none',
-  },
-  {
-    id: 'dec-mask',
-    title: 'Masked Multi-Head Attention — why "masked"?',
-    description:
-      'The decoder self-attends over what it\u2019s generated so far, but is forbidden from looking past its current position. Without that, predicting "animal" could just copy the answer instead of inferring it.',
-    highlight: ['dec-mmha'],
-    visual: 'decoder-mask',
-  },
-  {
-    id: 'dec-cross',
-    title: 'Encoder-Decoder (Cross) Attention',
-    description:
-      'The decoder\u2019s queries meet the encoder\u2019s keys and values — the arrow crossing over. To answer correctly it must reach back into the encoder\u2019s finished "it".',
-    highlight: ['dec-cross'],
-    visual: 'decoder-cross',
-  },
-  {
-    id: 'dec-ffn',
-    title: 'Feed-Forward Network (×N)',
-    description: 'Same as the encoder side: Add & Norm, MLP, Add & Norm — the full decoder block repeats N times.',
-    highlight: ['dec-addnorm1', 'dec-ffn', 'dec-addnorm2'],
-    visual: 'none',
-  },
-  {
-    id: 'linear',
-    title: 'Linear — projecting to vocabulary size',
-    description: 'The final decoder vector is projected into one logit per word in the entire output vocabulary.',
-    highlight: ['linear'],
-    visual: 'logits',
-  },
-  {
-    id: 'softmax',
-    title: 'Softmax — logits become probabilities',
-    description: 'Every logit is squashed into a value between 0 and 1, all summing to exactly 1. Real math, right here.',
-    highlight: ['softmax'],
-    visual: 'softmax',
-  },
-  {
-    id: 'output',
-    title: 'Predicting the next word — and looping back',
-    description: 'The highest-probability word is chosen, appended, and fed back in — one word at a time — until the answer is complete.',
-    highlight: ['outputprobs', 'dec-output'],
-    visual: 'softmax',
-  },
-];
+function getStepsForStage(stage: EvolutionStage): Step[] {
+  if (stage.diagramType === 'encoder-decoder') {
+    return [
+      {
+        id: 'input',
+        title: 'Feeding in the input',
+        description:
+          'The encoder receives the full context at once. The decoder is shifted right, seeing generated context up to the current token.',
+        highlight: ['enc-input', 'dec-output'],
+        visual: 'none',
+      },
+      {
+        id: 'embed',
+        title: 'Input & Output Embedding',
+        description: 'Tokens are looked up in embedding tables to project discrete vocabulary indices into vector representations.',
+        highlight: ['enc-embed', 'dec-embed'],
+        visual: 'none',
+      },
+      {
+        id: 'pe',
+        title: `Positional Encoding (${stage.peLabel})`,
+        description: `Positional information (${stage.peLabel}) is injected into token embeddings so the network retains order awareness.`,
+        highlight: ['enc-pe', 'dec-pe'],
+        visual: 'pe',
+      },
+      {
+        id: 'enc-attn',
+        title: 'Encoder Self-Attention',
+        description: 'Bidirectional multi-head attention aggregates full context across all input positions simultaneously.',
+        highlight: ['enc-mha'],
+        visual: 'encoder-attn',
+      },
+      {
+        id: 'enc-ffn',
+        title: stage.moe ? 'Encoder Sparse MoE Routing' : `Encoder FFN (${stage.ffnLabel})`,
+        description: stage.moe
+          ? 'Gating networks dynamically route each token to specialized expert Feed-Forward sub-networks.'
+          : `Dense MLP block processes representations with non-linear activation (${stage.ffnLabel}).`,
+        highlight: ['enc-addnorm1', 'enc-ffn', 'enc-addnorm2'],
+        visual: 'none',
+      },
+      {
+        id: 'dec-mask',
+        title: 'Masked Multi-Head Attention',
+        description: 'Causal masking prevents decoder positions from attending to future tokens during sequence generation.',
+        highlight: ['dec-mmha'],
+        visual: 'decoder-mask',
+      },
+      {
+        id: 'dec-cross',
+        title: 'Encoder-Decoder (Cross) Attention',
+        description: 'Decoder queries cross-attend over encoder key/value outputs to pull context from the input sequence.',
+        highlight: ['dec-cross'],
+        visual: 'decoder-cross',
+      },
+      {
+        id: 'dec-ffn',
+        title: stage.moe ? 'Decoder Sparse MoE Routing' : `Decoder FFN (${stage.ffnLabel})`,
+        description: stage.moe
+          ? 'Selected top-k decoder expert networks transform intermediate representations.'
+          : 'Dense Feed-Forward network applies element-wise non-linear expansions.',
+        highlight: ['dec-addnorm1', 'dec-ffn', 'dec-addnorm2'],
+        visual: 'none',
+      },
+      {
+        id: 'linear',
+        title: 'Linear Projection',
+        description: 'Final decoder hidden state is projected back onto the vocabulary dimension.',
+        highlight: ['linear'],
+        visual: 'logits',
+      },
+      {
+        id: 'softmax',
+        title: 'Softmax Probabilities',
+        description: 'Raw logit scores are normalized into a discrete target word probability distribution.',
+        highlight: ['softmax'],
+        visual: 'softmax',
+      },
+      {
+        id: 'output',
+        title: 'Autoregressive Loop',
+        description: 'The highest-probability token is selected, appended to sequence history, and fed back into the decoder.',
+        highlight: ['outputprobs', 'dec-output'],
+        visual: 'softmax',
+      },
+    ];
+  }
+
+  if (stage.diagramType === 'decoder-only') {
+    return [
+      {
+        id: 'input',
+        title: 'Sequence Input',
+        description: 'Prompt tokens enter the autoregressive stack shifted right, ready to predict the subsequent token.',
+        highlight: ['dec-output'],
+        visual: 'none',
+      },
+      {
+        id: 'embed',
+        title: 'Token Embedding',
+        description: 'Tokens are mapped to dense vector representations using a shared token embedding matrix.',
+        highlight: ['dec-embed'],
+        visual: 'none',
+      },
+      {
+        id: 'pe',
+        title: `Positional Encoding (${stage.peLabel})`,
+        description: `${stage.peLabel} embeds relative sequence order directly into key/query inner products or token vectors.`,
+        highlight: ['dec-pe'],
+        visual: 'pe',
+      },
+      {
+        id: 'dec-mask',
+        title: stage.attnLabel ?? 'Causal Masked Self-Attention',
+        description: 'Causal attention ensures tokens only compute dot products against current and past token positions.',
+        highlight: ['dec-mmha'],
+        visual: 'decoder-mask',
+      },
+      {
+        id: 'dec-ffn',
+        title: stage.moe ? 'Sparse MoE Expert Routing' : `Feed-Forward Layer (${stage.ffnLabel})`,
+        description: stage.moe
+          ? 'A router directs each token to a subset of specialized expert FFNs (e.g. Top-2 or fine-grained MoE).'
+          : `Dense transformation using non-linear activation functions (${stage.ffnLabel}).`,
+        highlight: ['dec-addnorm1', 'dec-ffn', 'dec-addnorm2'],
+        visual: 'none',
+      },
+      {
+        id: 'linear',
+        title: 'Vocabulary Projection',
+        description: 'Final decoder representations are projected via the unembedding matrix to produce vocabulary logits.',
+        highlight: ['linear'],
+        visual: 'logits',
+      },
+      {
+        id: 'softmax',
+        title: 'Softmax Distribution',
+        description: 'Logits are exponentiated and normalized to generate next-token sampling probabilities.',
+        highlight: ['softmax'],
+        visual: 'softmax',
+      },
+      {
+        id: 'output',
+        title: 'Next Token Generation',
+        description: 'Sampled token is appended to the KV cache/context window to predict the following word iteratively.',
+        highlight: ['outputprobs', 'dec-output'],
+        visual: 'softmax',
+      },
+    ];
+  }
+
+  // Encoder-Only (e.g. BERT)
+  return [
+    {
+      id: 'input',
+      title: 'Full Context Input',
+      description: 'Input sentence with [MASK] tokens is ingested simultaneously without causal masking constraints.',
+      highlight: ['enc-input'],
+      visual: 'none',
+    },
+    {
+      id: 'embed',
+      title: 'Token & Segment Embeddings',
+      description: 'Vocabulary token embeddings are combined with segment and token type identifiers.',
+      highlight: ['enc-embed'],
+      visual: 'none',
+    },
+    {
+      id: 'pe',
+      title: `Positional Encoding (${stage.peLabel})`,
+      description: `${stage.peLabel} positional encodings are added to preserve sequence structure.`,
+      highlight: ['enc-pe'],
+      visual: 'pe',
+    },
+    {
+      id: 'enc-attn',
+      title: 'Bidirectional Self-Attention',
+      description: 'Every token attends to every other token (left and right) simultaneously across all sequence positions.',
+      highlight: ['enc-mha'],
+      visual: 'encoder-attn',
+    },
+    {
+      id: 'enc-ffn',
+      title: `Feed-Forward Network (${stage.ffnLabel})`,
+      description: `Point-wise Feed-Forward networks refine bidirectional token context with non-linear activation (${stage.ffnLabel}).`,
+      highlight: ['enc-addnorm1', 'enc-ffn', 'enc-addnorm2'],
+      visual: 'none',
+    },
+    {
+      id: 'linear',
+      title: 'Masked Projection Head',
+      description: 'Hidden state corresponding to the [MASK] position is projected to vocabulary dimensions.',
+      highlight: ['linear'],
+      visual: 'logits',
+    },
+    {
+      id: 'softmax',
+      title: 'Softmax Evaluation',
+      description: 'Softmax computes exact probabilities across all candidates for the masked token position.',
+      highlight: ['softmax'],
+      visual: 'softmax',
+    },
+    {
+      id: 'output',
+      title: 'Masked Token Prediction',
+      description: 'The highest probability token fills the masked position in parallel.',
+      highlight: ['outputprobs'],
+      visual: 'softmax',
+    },
+  ];
+}
 
 const AUTO_MS = 3400;
 
@@ -125,9 +250,9 @@ export default function TransformerArchitecturePage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stage: EvolutionStage = EVOLUTION_STAGES.find((s: EvolutionStage) => s.id === evolutionId) ?? EVOLUTION_STAGES[0];
+  const steps = useMemo(() => getStepsForStage(stage), [stage]);
   const example = EXAMPLES[variant];
   const n = example.encoderTokens.length;
-  const animated = stage.hasAnimatedWalkthrough;
 
   const changeStage = (id: string) => {
     setEvolutionId(id);
@@ -137,10 +262,10 @@ export default function TransformerArchitecturePage() {
   };
 
   useEffect(() => {
-    if (!isPlaying || !animated) return;
+    if (!isPlaying) return;
     timerRef.current = setInterval(() => {
       setStepIdx((p: number) => {
-        if (p >= STEPS.length - 1) {
+        if (p >= steps.length - 1) {
           setIsPlaying(false);
           return p;
         }
@@ -150,10 +275,10 @@ export default function TransformerArchitecturePage() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPlaying, animated]);
+  }, [isPlaying, steps.length]);
 
-  const active = (id: string) => animated && STEPS[stepIdx].highlight.includes(id);
-  const step = STEPS[stepIdx];
+  const active = (id: string) => steps[stepIdx]?.highlight.includes(id) ?? false;
+  const step = steps[stepIdx] || steps[0];
 
   const changeVariant = (v: Variant) => {
     setVariant(v);
@@ -178,7 +303,7 @@ export default function TransformerArchitecturePage() {
 
   return (
     <main className="flex min-h-screen flex-col bg-base-950 md:h-screen md:flex-row md:overflow-hidden">
-      {/* LEFT SIDEBAR — everything but the diagram lives here */}
+      {/* LEFT SIDEBAR */}
       <aside className="flex w-full shrink-0 flex-col gap-5 border-b border-base-700 bg-base-850 p-5 md:h-full md:w-[360px] md:overflow-y-auto md:border-b-0 md:border-r">
         <div className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-base-200 text-xs font-bold text-base-950">L</div>
@@ -242,126 +367,111 @@ export default function TransformerArchitecturePage() {
           <p><span className="font-medium text-base-300">Struggles: </span><span className="text-base-500">{stage.struggles}</span></p>
         </div>
 
-        {/* Era Task Description (Visible across all stages) */}
+        {/* Era Task Description & Example Variant Selector */}
         <div className="flex flex-col gap-2">
-          <label className="px-0.5 text-xs font-medium uppercase tracking-wide text-base-500">Task</label>
+          <label className="px-0.5 text-xs font-medium uppercase tracking-wide text-base-500">Era Task</label>
           <p className="text-xs leading-relaxed text-base-400">{stage.task}</p>
-          {animated && (
-            <>
-              <div className="flex items-center gap-1 rounded-full border border-base-700 bg-base-900 p-1">
-                <button
-                  onClick={() => changeVariant('tired')}
-                  className="flex-1 rounded-full px-2 py-1.5 text-xs font-medium transition"
-                  style={{ backgroundColor: variant === 'tired' ? COLORS.attn : 'transparent', color: variant === 'tired' ? '#fff' : '#8B8576' }}
-                >
-                  &hellip;too tired
-                </button>
-                <button
-                  onClick={() => changeVariant('wide')}
-                  className="flex-1 rounded-full px-2 py-1.5 text-xs font-medium transition"
-                  style={{ backgroundColor: variant === 'wide' ? COLORS.attn : 'transparent', color: variant === 'wide' ? '#fff' : '#8B8576' }}
-                >
-                  &hellip;too wide
-                </button>
-              </div>
-              <div className="rounded-xl border px-3 py-2 text-center font-mono text-[11px] leading-relaxed text-base-200" style={{ borderColor: `${COLORS.attn}55`, backgroundColor: `${COLORS.attn}0f` }}>
-                &ldquo;{example.sentence}&rdquo;
-              </div>
-            </>
-          )}
+
+          <div className="flex items-center gap-1 rounded-full border border-base-700 bg-base-900 p-1">
+            <button
+              onClick={() => changeVariant('tired')}
+              className="flex-1 rounded-full px-2 py-1.5 text-xs font-medium transition"
+              style={{ backgroundColor: variant === 'tired' ? COLORS.attn : 'transparent', color: variant === 'tired' ? '#fff' : '#8B8576' }}
+            >
+              &hellip;too tired
+            </button>
+            <button
+              onClick={() => changeVariant('wide')}
+              className="flex-1 rounded-full px-2 py-1.5 text-xs font-medium transition"
+              style={{ backgroundColor: variant === 'wide' ? COLORS.attn : 'transparent', color: variant === 'wide' ? '#fff' : '#8B8576' }}
+            >
+              &hellip;too wide
+            </button>
+          </div>
+          <div className="rounded-xl border px-3 py-2 text-center font-mono text-[11px] leading-relaxed text-base-200" style={{ borderColor: `${COLORS.attn}55`, backgroundColor: `${COLORS.attn}0f` }}>
+            &ldquo;{example.sentence}&rdquo;
+          </div>
         </div>
 
-        {animated && (
-          <>
-            {/* step list */}
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between px-0.5">
-                <span className="text-xs font-medium uppercase tracking-wide text-base-500">Pipeline</span>
-                <span className="font-tabular text-xs text-base-500">{stepIdx + 1}/{STEPS.length}</span>
-              </div>
-              <nav className="flex flex-col gap-0.5">
-                {STEPS.map((s, i) => {
-                  const isActive = i === stepIdx;
-                  const done = i < stepIdx;
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={() => { setIsPlaying(false); setStepIdx(i); }}
-                      className="flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left transition"
-                      style={{ backgroundColor: isActive ? `${COLORS.attn}17` : 'transparent' }}
-                    >
-                      <span
-                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold"
-                        style={{
-                          backgroundColor: isActive ? COLORS.attn : done ? `${COLORS.attn}2a` : 'transparent',
-                          color: isActive ? '#fff' : done ? COLORS.attn : '#8B8576',
-                          border: isActive || done ? 'none' : '1px solid #DDD7C6',
-                        }}
-                      >
-                        {done ? '✓' : i + 1}
-                      </span>
-                      <span className={`truncate text-[12px] ${isActive ? 'font-semibold text-base-100' : done ? 'text-base-300' : 'text-base-500'}`}>
-                        {s.title}
-                      </span>
-                    </button>
-                  );
-                })}
-              </nav>
-            </div>
+        {/* Pipeline Step Navigation */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between px-0.5">
+            <span className="text-xs font-medium uppercase tracking-wide text-base-500">Pipeline</span>
+            <span className="font-tabular text-xs text-base-500">{stepIdx + 1}/{steps.length}</span>
+          </div>
+          <nav className="flex flex-col gap-0.5">
+            {steps.map((s, i) => {
+              const isActive = i === stepIdx;
+              const done = i < stepIdx;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => { setIsPlaying(false); setStepIdx(i); }}
+                  className="flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left transition"
+                  style={{ backgroundColor: isActive ? `${COLORS.attn}17` : 'transparent' }}
+                >
+                  <span
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold"
+                    style={{
+                      backgroundColor: isActive ? COLORS.attn : done ? `${COLORS.attn}2a` : 'transparent',
+                      color: isActive ? '#fff' : done ? COLORS.attn : '#8B8576',
+                      border: isActive || done ? 'none' : '1px solid #DDD7C6',
+                    }}
+                  >
+                    {done ? '✓' : i + 1}
+                  </span>
+                  <span className={`truncate text-[12px] ${isActive ? 'font-semibold text-base-100' : done ? 'text-base-300' : 'text-base-500'}`}>
+                    {s.title}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
 
-            {/* current step detail — title, description, and its visual */}
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={step.id}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.25 }}
-                className="flex flex-col gap-2 rounded-xl border border-base-700 bg-base-900 p-3 shadow-panel"
-              >
-                <h2 className="text-xs font-semibold text-base-100">{step.title}</h2>
-                <p className="text-[11px] leading-relaxed text-base-400">{step.description}</p>
+        {/* Current Step Detail View */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={step.id + stage.id}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.25 }}
+            className="flex flex-col gap-2 rounded-xl border border-base-700 bg-base-900 p-3 shadow-panel"
+          >
+            <h2 className="text-xs font-semibold text-base-100">{step.title}</h2>
+            <p className="text-[11px] leading-relaxed text-base-400">{step.description}</p>
 
-                {step.visual === 'pe' && <PositionalEncodingVisual example={example} compact />}
-                {step.visual === 'encoder-attn' && <EncoderAttentionVisual example={example} allRows={encoderRows} compact />}
-                {step.visual === 'decoder-mask' && <DecoderMaskVisual example={example} compact />}
-                {step.visual === 'decoder-cross' && <DecoderCrossVisual example={example} compact />}
-                {(step.visual === 'logits' || step.visual === 'softmax') && (
-                  <LogitsVisual example={example} probs={step.visual === 'softmax' ? probs : null} compact />
-                )}
-              </motion.div>
-            </AnimatePresence>
+            {step.visual === 'pe' && <PositionalEncodingVisual example={example} compact />}
+            {step.visual === 'encoder-attn' && <EncoderAttentionVisual example={example} allRows={encoderRows} compact />}
+            {step.visual === 'decoder-mask' && <DecoderMaskVisual example={example} compact />}
+            {step.visual === 'decoder-cross' && <DecoderCrossVisual example={example} compact />}
+            {(step.visual === 'logits' || step.visual === 'softmax') && (
+              <LogitsVisual example={example} probs={step.visual === 'softmax' ? probs : null} compact />
+            )}
+          </motion.div>
+        </AnimatePresence>
 
-            {/* player */}
-            <div className="border-t border-base-700 pt-3">
-              <Controls
-                isPlaying={isPlaying}
-                onTogglePlay={() => { if (stepIdx >= STEPS.length - 1) setStepIdx(0); setIsPlaying((p: boolean) => !p); }}
-                onStepBack={() => { setIsPlaying(false); setStepIdx((p: number) => Math.max(0, p - 1)); }}
-                onStepForward={() => { setIsPlaying(false); setStepIdx((p: number) => Math.min(STEPS.length - 1, p + 1)); }}
-                onRestart={() => { setIsPlaying(false); setStepIdx(0); }}
-                canStepBack={stepIdx > 0}
-                canStepForward={stepIdx < STEPS.length - 1}
-                accent={COLORS.attn}
-              />
-            </div>
-          </>
-        )}
-
-        {!animated && (
-          <p className="text-xs leading-relaxed text-base-500">
-            The full animated step-by-step walkthrough (with a hand-verified worked example) runs on the 2017
-            original — self-attention&rsquo;s math is the shared foundation every later variant builds on. This
-            era is shown structurally: which pieces exist, and which activation / positional-encoding scheme replaced the original.
-          </p>
-        )}
+        {/* Player Controls */}
+        <div className="border-t border-base-700 pt-3">
+          <Controls
+            isPlaying={isPlaying}
+            onTogglePlay={() => { if (stepIdx >= steps.length - 1) setStepIdx(0); setIsPlaying((p: boolean) => !p); }}
+            onStepBack={() => { setIsPlaying(false); setStepIdx((p: number) => Math.max(0, p - 1)); }}
+            onStepForward={() => { setIsPlaying(false); setStepIdx((p: number) => Math.min(steps.length - 1, p + 1)); }}
+            onRestart={() => { setIsPlaying(false); setStepIdx(0); }}
+            canStepBack={stepIdx > 0}
+            canStepForward={stepIdx < steps.length - 1}
+            accent={COLORS.attn}
+          />
+        </div>
 
         <p className="mt-auto px-0.5 text-[11px] leading-relaxed text-base-500">
-          Positional encoding, softmax, and the causal mask shape are real computed math throughout.
+          Positional encoding, attention distributions, and probability normalization compute live math across all eras.
         </p>
       </aside>
 
-      {/* RIGHT — diagram viewport */}
+      {/* RIGHT — DIAGRAM VIEWPORT */}
       <section className="flex flex-1 items-center justify-center overflow-hidden md:h-full">
         <div className="flex w-full flex-col items-center gap-1 p-3 sm:p-4">
           <DiagramBox label="Output Probabilities" color={COLORS.softmax} active={active('outputprobs')} />
