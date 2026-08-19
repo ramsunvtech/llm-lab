@@ -1,13 +1,4 @@
 // Historically-verified milestones in Transformer architecture evolution.
-// Architecture / Activations / Key Models / Struggles text is the user's own
-// (typo "Activities"->"Activations" fixed, one garbled sentence in the 2018
-// entry clarified without changing its meaning). diagramType / ffnLabel /
-// peLabel / attnLabel / moe are engineering fields added to make the diagram
-// genuinely reconfigure per era, cross-checked against primary sources:
-// Switch Transformer is confirmed built on T5's encoder-decoder (not
-// decoder-only) with top-1 routing; SwiGLU traces to Shazeer's Feb 2020
-// "GLU Variants Improve Transformer".
-
 export type DiagramType = 'encoder-decoder' | 'decoder-only' | 'encoder-only';
 
 export interface EvolutionStage {
@@ -19,12 +10,12 @@ export interface EvolutionStage {
   activations: string;
   keyModels: string;
   struggles: string;
-  task: string; // what a walkthrough for this era would demonstrate — data is ready, not yet wired into the UI (see note at bottom of file)
+  task: string;
   diagramType: DiagramType;
   ffnLabel: string;
   peLabel: string;
-  attnLabel?: string; // overrides the attention box's default label when set
-  moe: boolean; // true = FFN box renders as a sparse MoE layer
+  attnLabel?: string;
+  moe: boolean;
   hasAnimatedWalkthrough: boolean;
 }
 
@@ -150,14 +141,3 @@ export const EVOLUTION_STAGES: EvolutionStage[] = [
 ];
 
 export const DEFAULT_STAGE_ID = 'original-2017';
-
-// NOTE for the next iteration: `task` is populated for every stage above,
-// but page.tsx currently only renders the Task / sample-prompt / step-list /
-// player block when `hasAnimatedWalkthrough` is true (2017 only). Wiring
-// `task` in for every era means either (a) generalizing that block to show
-// `stage.task` as static text with player controls disabled for eras without
-// a hand-verified worked example, or (b) building real per-diagramType step
-// lists so the walkthrough is actually accurate for encoder-only/decoder-only
-// architectures too, not just relabeled. (b) is the honest fix; (a) is the
-// fast one. Needs a page.tsx change either way — not resolvable from this
-// file alone.

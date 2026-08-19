@@ -242,13 +242,12 @@ export default function TransformerArchitecturePage() {
           <p><span className="font-medium text-base-300">Struggles: </span><span className="text-base-500">{stage.struggles}</span></p>
         </div>
 
-        {animated && (
-          <>
-            <div className="flex flex-col gap-2">
-              <label className="px-0.5 text-xs font-medium uppercase tracking-wide text-base-500">Task</label>
-              <p className="text-xs leading-relaxed text-base-400">
-                Encoder reads the sentence. Decoder answers: <span className="font-medium text-base-200">what does &ldquo;it&rdquo; refer to?</span>
-              </p>
+        {/* Era Task Description (Visible across all stages) */}
+        <div className="flex flex-col gap-2">
+          <label className="px-0.5 text-xs font-medium uppercase tracking-wide text-base-500">Task</label>
+          <p className="text-xs leading-relaxed text-base-400">{stage.task}</p>
+          {animated && (
+            <>
               <div className="flex items-center gap-1 rounded-full border border-base-700 bg-base-900 p-1">
                 <button
                   onClick={() => changeVariant('tired')}
@@ -268,8 +267,12 @@ export default function TransformerArchitecturePage() {
               <div className="rounded-xl border px-3 py-2 text-center font-mono text-[11px] leading-relaxed text-base-200" style={{ borderColor: `${COLORS.attn}55`, backgroundColor: `${COLORS.attn}0f` }}>
                 &ldquo;{example.sentence}&rdquo;
               </div>
-            </div>
+            </>
+          )}
+        </div>
 
+        {animated && (
+          <>
             {/* step list */}
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between px-0.5">
@@ -306,7 +309,7 @@ export default function TransformerArchitecturePage() {
               </nav>
             </div>
 
-            {/* current step detail — title, description, and its visual, all in the sidebar */}
+            {/* current step detail — title, description, and its visual */}
             <AnimatePresence mode="wait">
               <motion.div
                 key={step.id}
@@ -358,7 +361,7 @@ export default function TransformerArchitecturePage() {
         </p>
       </aside>
 
-      {/* RIGHT — diagram only, fixed within the viewport, no scroll */}
+      {/* RIGHT — diagram viewport */}
       <section className="flex flex-1 items-center justify-center overflow-hidden md:h-full">
         <div className="flex w-full flex-col items-center gap-1 p-3 sm:p-4">
           <DiagramBox label="Output Probabilities" color={COLORS.softmax} active={active('outputprobs')} />
@@ -656,6 +659,7 @@ function ChevronIcon({ open }: { open: boolean }) {
     </svg>
   );
 }
+
 function CheckIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-emerald-600">
